@@ -7,27 +7,93 @@
 
 **1. 视C++ 为一个语言联邦 11（View C++ as a federation of languages 11)**
 
+    主要是因为C++是从四个语言发展出来的：
+    C的代码块({}), 语句，数据类型等，
+    object-C的class，封装继承多态，virtual动态绑定等，
+    template C++的泛型
+    STL：容器，迭代器，算法，函数对象等
 
-**2. 尽量以const, enum, inline替换#defines（Prefer consts,enums, and inlines to #defines.)**
+    因此当这四个子语言相互切换的时候，可以更多地考虑高效编程，例如pass-by-value和pass-by-reference在不同语言中效率不同
+
+总结：C++高效编程守则视状况而变化，取决于使用哪个子语言
+
+
+**2. 尽量以const, enum, inline替换#define（Prefer consts,enums, and inlines to #defines)**
+
+实际是：应该让编译器代替预处理器定义，因为预处理器定义的变量并没有进入到symbol table里面。编译器有时候会看不到预处理器定义
+
+所以用 
+
+    const double Ratio = 1.653;
+
+来代替 
+    
+    #define Ratio 1.653
+
+实际上在这个转换中还要考虑到指针，例如需要把指针写成const char* const authorName = "name";而不是只用一个const
+
+以及在class类里面的常量，为了防止被多次拷贝，需要定义成类的成员（添加static）例如
+
+    class GamePlayer{
+        static const int numT = 5;
+    }
+
+对于类似函数的宏，最好改用inline函数代替，例如：
+    
+    #define CALL_WITH_MAX(a, b) f((a) > (b) ? (a) : (b))
+    template<typename T>
+    inline void callWithMax(const T& a, const T& b){
+        f(a > b ? a : b);
+    }
+
+总结：对于单纯的常量，最好用const和enums替换#define， 对于形似函数的宏，最好改用inline函数替换#define
 
 **3. 尽可能使用const（Use const whenever possible.)**
 
-**4. 确定对象被使用前已先被初始化（Make sure that objects are initialized before they're used.)**
+const 出现在星号左边，表示被指物是常量，如果出现在星号右边，表示指针本身是常量，如果出现在星号两边，表示被指物和指针都是常量
+
+const最强的用法是在函数声明时，如果将返回值设置成const，或者返回指针设置成const，可以避免很多用户错误造成的意外。
+
+概念上的const：
+
+    考虑这样一段代码
+    class CTextBlock{
+        public:
+            char& operator[](std::size_t position)const{
+                return pText[position];
+            }
+        private:
+            char *pText;
+    }
+    const CTextBlock cctb("Hello");
+    char *pc = &cctb[0];
+    *pc = 'J'
+    这种情况下不会报错，但是一方面声明的时候说了是const，一方面还修改了值。这种逻辑虽然有问题但是编译器并不会报错
+
+但是const使用过程中会出现想要修改某个变量的情况，而另外一部分代码确实不需要修改。这个时候最先想到的方法就是重载一个非const版本。
+但是还有其他的方法，例如将非const版本的代码调用const的代码
+
+总结：将某些东西声明为const可以帮助编译器检查出错误。
+编译器强制实施bitwise constneww，但是编写程序的时候应该使用概念上的常量性。
+当const和非const版本有着实质等价的实现时，让非const版本调用const版本可以避免代码重复
+
+
+**4. 确定对象被使用前已先被初始化（Make sure that objects are initialized before they're used)**
 
 
 #### 二、构造/析构/赋值运算 (Constructors, Destructors, and Assignment Operators)
 
-**5. 了解C++ 那些自动生成和调用的函数（Know what functions C++ silently writes and calls.)**
+**5. 了解C++ 那些自动生成和调用的函数（Know what functions C++ silently writes and calls)**
 
-**6. 若不想使用编译器自动生成的函数，就该明确拒绝（Explicitly disallow the use of compiler-generated functions you do not want.)**
+**6. 若不想使用编译器自动生成的函数，就该明确拒绝（Explicitly disallow the use of compiler-generated functions you do not want)**
 
-**7. 为多态基类声明virtual析构函数（Declare destructors virtual in polymorphic base classes.)**
+**7. 为多态基类声明virtual析构函数（Declare destructors virtual in polymorphic base classes)**
 
-**8. 别让异常逃离析构函数（Prevent exceptions from leaving destructors.)**
+**8. 别让异常逃离析构函数（Prevent exceptions from leaving destructors)**
 
-**9. 绝不在构造和析构过程中调用virtual函数（Never call virtual functions during construction or destruction.)**
+**9. 绝不在构造和析构过程中调用virtual函数（Never call virtual functions during construction or destruction)**
 
-**10. 令operator= 返回一个reference to *this （Have assignment operators return a reference to *this.)**
+**10. 令operator= 返回一个reference to *this （Have assignment operators return a reference to *this)**
 
 **11. 在operator= 中处理“自我赋值” （Handle assignment to self in operator=)**
 
