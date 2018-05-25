@@ -73,9 +73,10 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
 但是const使用过程中会出现想要修改某个变量的情况，而另外一部分代码确实不需要修改。这个时候最先想到的方法就是重载一个非const版本。
 但是还有其他的方法，例如将非const版本的代码调用const的代码
 
-总结：将某些东西声明为const可以帮助编译器检查出错误。
-编译器强制实施bitwise constneww，但是编写程序的时候应该使用概念上的常量性。
-当const和非const版本有着实质等价的实现时，让非const版本调用const版本可以避免代码重复
+总结：
++ 将某些东西声明为const可以帮助编译器检查出错误。
++ 编译器强制实施bitwise constneww，但是编写程序的时候应该使用概念上的常量性。
++ 当const和非const版本有着实质等价的实现时，让非const版本调用const版本可以避免代码重复
 
 
 **4. 确定对象被使用前已先被初始化（Make sure that objects are initialized before they're used)**
