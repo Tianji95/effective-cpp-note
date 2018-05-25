@@ -15,7 +15,8 @@
 
     因此当这四个子语言相互切换的时候，可以更多地考虑高效编程，例如pass-by-value和pass-by-reference在不同语言中效率不同
 
-总结：C++高效编程守则视状况而变化，取决于使用哪个子语言
+总结：
++ C++高效编程守则视状况而变化，取决于使用哪个子语言
 
 
 **2. 尽量以const, enum, inline替换#define（Prefer consts,enums, and inlines to #defines)**
@@ -46,7 +47,8 @@
         f(a > b ? a : b);
     }
 
-总结：对于单纯的常量，最好用const和enums替换#define， 对于形似函数的宏，最好改用inline函数替换#define
+总结：
++ 对于单纯的常量，最好用const和enums替换#define， 对于形似函数的宏，最好改用inline函数替换#define
 
 **3. 尽可能使用const（Use const whenever possible.)**
 
@@ -81,10 +83,58 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
 
 **4. 确定对象被使用前已先被初始化（Make sure that objects are initialized before they're used)**
 
+对于C++中的C语言来说，初始化变量有可能会导致runtime的效率变低，但是C++部分应该手动保证初始化，否则会出现很多问题。
+
+初始化的函数通常在构造函数上（注意区分初始化和赋值的关系，初始化的效率高，赋值的效率低，而且这些初始化是有次序的，base classes更早于他们的派生类（参看[C++ primer 二刷笔记](https://github.com/Tianji95/note-of-C-plus-plus-primer/blob/master/C%2B%2Bprimer%E4%BA%8C%E5%88%B7%E7%AC%94%E8%AE%B0.md)
+
+除了这些以外，如果我们有两个文件A和B，需要分别编译，A构造函数中用到了B中的对象，那么初始化A和B的顺序就很重要了，这些变量称为（non-local static对象）
+
+解决方法是：将每个non-local static对象搬到自己专属的函数内，并且该对象被声明为static，然后这些函数返回一个reference指向他所含的对象，用户调用这些函数，而不直接涉及这些对象（Singleton模式手法）：
+
+    原代码：
+    "A.h"
+    class FileSystem{
+        public:
+            std::size_t numDisks() const;
+    };
+    extern FileSystem tfs;
+    "B.h"
+    class Directory{
+        public:
+            Directory(params){
+                std::size_t disks = tfs.numDisks(); //使用tfs
+            }
+    }
+    修改后：
+    class FileSystem{...}    //同前
+    FileSystem& tfs(){       //这个函数用来替换tfs对象，他在FileSystem class 中可能是一个static，            
+        static FileSystem fs;//定义并初始化一个local static对象，返回一个reference
+        return fs;
+    }
+    class Directory{...}     // 同前
+    Directory::Directory(params){
+        std::size_t disks = tfs().numDisks();
+    }
+    Directotry& tempDir(){   //这个函数用来替换tempDir对象，他在Directory class中可能是一个static，
+        static Directory td; //定义并初始化local static对象，返回一个reference指向上述对象
+        return td;
+    }
+
+这样做的原理在于C++对于函数内的local static对象会在“该函数被调用期间，且首次遇到的时候”被初始化。当然我们需要避免“A受制于B，B也受制于A”
+
+总结：
++ 为内置型对象进行手工初始化，因为C++不保证初始化他们
++ 构造函数最好使用初始化列初始化而不是复制，并且他们初始化时有顺序的
++ 为了免除跨文件编译的初始化次序问题，应该以local static对象替换non-local static对象
 
 #### 二、构造/析构/赋值运算 (Constructors, Destructors, and Assignment Operators)
 
 **5. 了解C++ 那些自动生成和调用的函数（Know what functions C++ silently writes and calls)**
+
+
+总结：
++ 编译器可以自动为class生成default构造函数，拷贝构造函数，拷贝赋值操作符，以及析构函数
+
 
 **6. 若不想使用编译器自动生成的函数，就该明确拒绝（Explicitly disallow the use of compiler-generated functions you do not want)**
 
