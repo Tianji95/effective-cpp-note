@@ -105,12 +105,15 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
                 std::size_t disks = tfs.numDisks(); //使用tfs
             }
     }
+    Director tempDir(params);
     修改后：
+    "A.h"
     class FileSystem{...}    //同前
     FileSystem& tfs(){       //这个函数用来替换tfs对象，他在FileSystem class 中可能是一个static，            
         static FileSystem fs;//定义并初始化一个local static对象，返回一个reference
         return fs;
     }
+    "B.h"
     class Directory{...}     // 同前
     Directory::Directory(params){
         std::size_t disks = tfs().numDisks();
@@ -408,8 +411,21 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
 
 **18. 让接口容易被正确使用，不易被误用  （Make interfaces easy to use correctly and hard to use incorrectly)**
 
+要思考用户有可能做出什么样子的错误，考虑下面的代码：
+    
+    Date(int month, int day, int year);
+    这一段代码可以有很多问题，例如用户将day和month顺序写反（因为三个参数都是int类型的），可以修改成：
+    Date(const Month &m, const Day &d, const Year &y);//注意这里将每一个类型的数据单独设计成一个类，同时加上const限定符
+    为了让接口更加易用，可以对month加以限制，只有12个月份
+    class Month{
+        public:
+        static Month Jan(){return Month(1);}//这里用函数代替对象，主要是方式第四条：non-local static对象的初始化顺序问题
+    }
 
-
+    而对于一些返回指针的问题函数，例如：
+    Investment *createInvestment();//智能指针可以防止用户忘记delete返回的指针或者delete两次指针，但是可能存在用户忘记使用智能指针的情况，那么方法：
+    std::shared_ptr<Investment> createInvestment();就可以强制用户使用智能指针，或者更好的方法是另外设计一个函数：
+    std::shared_ptr<Investment>pInv(0, get)
 
 
 **19. 设计class犹如设计type  （Treat class design as type design)**
