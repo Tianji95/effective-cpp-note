@@ -473,14 +473,102 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
 
 同时，如果public的变量发生了改变，如果这个变量在代码中广泛使用，那么将会有很多代码遭到了破坏，需要重新写
 
+另外protected 并不比public更具有封装性，因为protected的变量，在发生改变的时候，他的子类代码也会受到破坏
 
 **23. 以non-member、non-friend替换member函数  （Prefer non-member non-friend functions to member functions)**
 
+区别如下：
+    
+    class WebBrowser{
+        public:
+        void clearCache();
+        void clearHistory();
+        void removeCookies();
+    }
+
+    member 函数：
+    class WebBrowser{
+        public:
+        ......
+        void clearEverything(){ clearCache(); clearHistory();removeCookies();}
+    }
+    
+    non-member non-friend函数：
+    void clearBrowser(WebBrowser& wb){
+        wb.clearCache();
+        wb.clearHistory();
+        wb.removeCookies();
+    }
+
+这里的原因是：member可以访问class的private函数，enums，typedefs等，但是non-member函数则无法访问上面这些东西，所以non-member non-friend函数更好
+
+这里还提到了namespace的用法，namespace可以用来对某些便利函数进行分割，将同一个命名空间中的不同类型的方法放到不同文件中(这也是C++标准库的组织方式，例如：
+    
+    "webbrowser.h"
+    namespace WebBrowserStuff{
+        class WebBrowser{...};
+        //所有用户需要的non-member函数
+    }
+
+    "webbrowserbookmarks.h"
+    namespace WebBrowserStuff{
+        //所有与书签相关的便利函数
+    }
 
 **24. 若所有参数皆需类型转换，请为此采用non-member函数  （Declare non-member functions when type conversions should apply to all parameters)**
 
+例如想要将一个int类型变量和Rational变量做乘法，如果是成员函数的话，发生隐式转换的时候会因为不存在int到Rational的类型变换而出错：
+
+
+    class Rational{
+        public:
+        const Rational operator* (const Rational& rhs)const;
+    }
+    Rational oneHalf;
+    result = oneHalf * 2;
+    result = 2 * oneHalf;//出错，因为没有int转Rational函数
+
+    non-member函数
+    class Rational{}
+    const Rational operator*(const Rational& lhs, const Rational& rhs){}
+
 
 **25. 考虑写出一个不抛异常的swap函数  （Consider support for a non-throwing swap)**
+
+写出一个高效、不容易发生误会、拥有一致性的swap是比较困难的，下面是对比代码：
+
+    修改前代码：
+    class Widget{
+        public:
+        Widget& operator=(const Widget& rhs){
+            *pImpl = *(rhs.pImpl);//低效
+        }
+        private:
+        WidgetImpl* pImpl;
+    }
+
+    修改后代码：
+    namespace WidgetStuff{
+        template<typename T>
+        class Widget{
+            void swap(Widget& other){
+                using std::swap;      //此声明是std::swap的一个特例化，
+                swap(pImpl, other.pImpl);
+            }
+        };
+        ...
+        template<typename T>           //non-member swap函数
+        void swap(Widget<T>& a, Widget<T>& b){//这里并不属于 std命名空间
+            a.swap(b);
+        }    
+    }
+
+总结：
++ 当std::swap对我们的类型效率不高的时候，应该提供一个swap成员函数，且保证这个函数不抛出异常（因为swap是要帮助class提供强烈的异常安全性的）
++ 如果提供了一个member swap，也应该提供一个non-member swap调用前者，对于classes（而不是templates），需要特例化一个std::swap
++ 调用swap时应该针对std::swap使用using std::swap声明，然后调用swap并且不带任何命名空间修饰符
++ 不要再std内加对于std而言是全新的东西（不符合C++标准）
+
 
 
 #### 五、实现 (Implementations)
@@ -488,13 +576,47 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
 
 **26. 尽可能延后变量定义式的出现时间  （Postpone variable definitions as long as possible)**
 
+主要是防止变量在定义以后没有使用，影响效率，应该在用到的时候再定义，同时通过default构造而不是赋值来初始化
 
 **27. 尽量不要进行强制类型转换  （Minimize casting)**
 
+主要是因为：
+
+1.从int转向double容易出现精度错误
+
+2.将一个类转换成他的父类也容易出现问题
+
+总结：
++ 尽量避免转型，特别是在注重效率的代码中避免dynamic_cast，试着用无需转型的替代设计
++ 如果转型是必要的，试着将他封装到韩束背后，让用户调用该函数，而不需要在自己的代码里面转型
++ 如果需要转型，使用新式的static_cast等转型，比原来的（int）好很多（更明显，分工更精确）
 
 **28. 避免返回handles指向对象内部成分  （Avoid returning "handles" to object internals)**
 
+主要是为了防止用户误操作返回的值：
+    
+    修改前代码：
+    class Rectangle{
+        public:
+        Point& upperLeft() const { return pData->ulhc; }
+        Point& lowerRight() const { return pData->lrhc; }
+    }
+    如果修改成：
+    class Rectangle{
+        public:
+        const Point& upperLeft() const { return pData->ulhc; }
+        const Point& lowerRight() const { return pData->lrhc; }
+    }
+    则仍然会出现悬吊的变量，例如：
+    const Point* pUpperLeft = &(boundingBox(*pgo).upperLeft());
+boundingBox会返回一个temp的新的，暂时的Rectangle对象，在这一整行语句执行完以后，temp就变成空的了，就成了悬吊的变量
+
+总结：
++ 尽量不要返回指向private变量的指针引用等
++ 如果真的要用，尽量使用const进行限制，同时尽量避免悬吊的可能性
+
 **29. 为“异常安全”而努力是值得的  （Strive for exception-safe code)**
+
 
 
 **30. 透彻了解inlining  （Understand the ins and outs of inlining)**
