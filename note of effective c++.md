@@ -617,6 +617,43 @@ boundingBox会返回一个temp的新的，暂时的Rectangle对象，在这一�
 
 **29. 为“异常安全”而努力是值得的  （Strive for exception-safe code)**
 
+异常安全函数具有以下三个特征之一：
++ 如果异常被抛出，程序内的任何事物仍然保持在有效状态下，没有任何对象或者数据结构被损坏，前后一致。在任何情况下都不泄露资源，在任何情况下都不允许破坏数据，一个比较典型的反例：
++ 如果异常被抛出，则程序的状态不被改变，程序会回到调用函数前的状态
++ 承诺绝不抛出异常
+
+    原函数：
+    class PrettyMenu{
+        public:
+        void changeBackground(std::istream& imgSrc); //改变背景图像
+        private:
+        Mutex mutex; // 互斥器
+    };
+
+    void changeBackground(std::istream& imgSrc){
+        lock(&mutex);               //取得互斥器
+        delete bgImage;             //摆脱旧的背景图像
+        ++imageChanges;             //修改图像的变更次数
+        bgImage = new Image(imgSrc);//安装新的背景图像
+        unlock(&mutex);             //释放互斥器
+    }
+当异常抛出的时候，这个函数就存在很大的问题：
++ 不泄露任何资源：当new Image(imgSrc)发生异常的时候，对unlock的调用就绝不会执行，于是互斥器就永远被把持住了
++ 不允许数据破坏：如果new Image(imgSrc)发生异常，bgImage就是空的，而且imageChanges也已经加上了
+    
+    修改后代码：
+    void PrettyMenu::changeBackground(std::istream& imgSrc){
+        Lock ml(&mutex);    //Lock是第13条中提到的用对象管理资源的类
+        bgImage.reset(new Image(imgSrc));
+        ++imageChanges; //放在后面
+    }
+
+总结：
++ 异常安全函数的三个特征
++ 第二个特征往往能够通过copy-and-swap实现出来，但是并非对所有函数都可实现或具备现实意义
++ 函数提供的异常安全保证，通常最高只等于其所调用各个函数的“异常安全保证”中最弱的那个。即函数的异常安全保证具有连带性
+
+
 
 
 **30. 透彻了解inlining  （Understand the ins and outs of inlining)**
