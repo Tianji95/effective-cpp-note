@@ -653,10 +653,11 @@ boundingBox会返回一个temp的新的，暂时的Rectangle对象，在这一�
 + 第二个特征往往能够通过copy-and-swap实现出来，但是并非对所有函数都可实现或具备现实意义
 + 函数提供的异常安全保证，通常最高只等于其所调用各个函数的“异常安全保证”中最弱的那个。即函数的异常安全保证具有连带性
 
-
-
-
 **30. 透彻了解inlining  （Understand the ins and outs of inlining)**
+
+inline 函数的过度使用会让程序的体积变大，内存占用过高
+
+而编译器是可以拒绝将函数inline的，不过当编译器不知道该调用哪个函数的时候，会报一个warning
 
 
 
