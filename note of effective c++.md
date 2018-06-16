@@ -659,10 +659,55 @@ inline 函数的过度使用会让程序的体积变大，内存占用过高
 
 而编译器是可以拒绝将函数inline的，不过当编译器不知道该调用哪个函数的时候，会报一个warning
 
-
+尽量不要为template或者构造函数设置成inline的，因为template inline以后有可能为每一个模板都生成对应的函数，从而让代码过于臃肿
+同样的道理，构造函数在实际的过程中也会产生很多的代码，例如下面的：
+    
+    class Derived : public Base{
+        public:
+        Derived(){} // 看起来是空白的构造函数
+    }
+    实际上：
+    Derived::Derived{
+        //100行异常处理代码
+    }
 
 **31. 将文件间的编译依存关系降至最低  （Minimize compilation dependencies between files)**
 
+这个关系其实指的是一个文件包含另外一个文件的类定义等
+
+那么如何实现解耦呢,通常是将实现定义到另外一个类里面，如下：
+    
+    原代码：
+    class Person{
+    private
+        Dates m_data;
+        Addresses m_addr;
+    }
+
+    添加一个Person的实现类，定义为PersonImpl，修改后的代码：
+    class PersonImpl;
+    class Person{
+        private:
+        shared_ptr<PersonImpl> pImpl;
+    }
+
+在上面的设计下,就实现了解耦，即“实现和接口分离”
+
+与此相似的接口类还可以使用全虚函数
+    
+    class Person{
+        public:
+        virtual ~Person();
+        virtual std::string name() const = 0;
+        virtual std::string birthDate() const = 0;
+    }
+然后通过继承的子类来实现相关的方法
+
+这种情况下这些virtual函数通常被成为factory工厂函数
+
+总结：
++ 应该让文件依赖于声明而不依赖于定义，可以通过上面两种方法实现
++ 程序头文件应该有且仅有声明
 
 #### 六、继承与面向对象设计 (Inheritance and Object-Oriented Design)
 
