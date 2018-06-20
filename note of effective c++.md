@@ -711,18 +711,89 @@ inline 函数的过度使用会让程序的体积变大，内存占用过高
 
 #### 六、继承与面向对象设计 (Inheritance and Object-Oriented Design)
 
-
 **32. 确定你的public继承塑模出is-a关系  （Make sure public inheritance models "is-a.")**
+
+public类继承指的是单向的更一般化的，例如：
+    
+    class Student : public Person{...};
+
+其意义指的是student是一个person，但是person不一定是一个student。
+
+这里经常会出的错误是，将父类可能不存在的功能实现出来，例如：
+    
+    class Bird{
+        virtual void fly();
+    }
+    class Penguin:public Bird{...};//企鹅是不会飞的
+
+这个时候就需要通过设计来排除这种错误，例如通过定义一个FlyBird
+
+总结：
++ public继承中，意味着每一个Base class的东西一定适用于他的derived class
 
 **33. 避免遮掩继承而来的名称  （Avoid hiding inherited names)**
 
+举例：
+    class Base{
+        public:
+        virtual void mf1() = 0;
+        virtual void mf1(int);
+        virtual void mf2();
+        void         mf3();
+        void         mf3(double);
+    }
+    class Derived:public Base{
+        public:
+        virtual void mf1();
+        void         mf3();
+    }
 
+这种问题可以通过 
+    
+    using Base::mf1;
+    或者
+    virtual void mf1(){//转交函数
+        Base::mf1();
+    }
+    来解决，但是尽量不要出现这种遮蔽的行为
+
+总结：
++ derived class 会遮蔽Base class的名称
++ 可以通过using 或者转交函数来解决
 
 **34. 区分接口继承和实现继承  （Differentiate between inheritance of interface and inheritance of implementation)**
 
-
+pure virtual 函数式提供了一个接口继承，当一个函数式pure virtual的时候，意味着所有的实现都在子类里面实现。不过pure virtual也是可以有实现的，调用他的实现的方法是在调用前加上基类的名称：
+    
+    class Shape{
+        virtual void draw() const = 0;
+    }
+    ps->Shape::draw();
+总结：
++ 接口继承和实现继承不同，在public继承下，derived classes总是继承base的接口
++ pure virtual函数只具体指定接口继承
++ 简朴的（非纯）impure virtual函数具体指定接口继承以及缺省实现继承
++ non-virtual函数具体指定接口继承以及强制性的实现继承
 
 **35. 考虑virtual函数以外的其他选择  （Consider alternatives to virtual functions)**
+
+NVI手法：通过public non-virtual成员函数间接调用private virtual函数，即所谓的template method设计模式：
+
+    class GameCharacter{
+    public:
+        int healthValue() const{
+            //做一些事前工作
+            int retVal = doHealthValue();
+            //做一些事后工作
+            return retVal;
+        }
+    private:
+        virtual int doHealthValue() const{
+            ...                   //缺省算法，计算健康函数
+        }
+    }
+这种方法的优点在于事前工作和事后工作，这些工作能够保证virtual函数在真正工作之前之后被单独调用
+
 
 **36. 绝不重新定义继承而来的non-virtual函数  （Never redefine an inherited non-virtual function)**
 
