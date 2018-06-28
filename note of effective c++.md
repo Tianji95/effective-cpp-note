@@ -794,8 +794,55 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
     }
 这种方法的优点在于事前工作和事后工作，这些工作能够保证virtual函数在真正工作之前之后被单独调用
 
+但是这种方法只是一种替代方法，另外的方法还有：函数指针（strategy设计模式
+
+    class GameCharacter; // 前置声明
+    int defaultHealthCalc(const GameCharacter& gc);
+    class GameCharacter{
+    public:
+        typedef int (*HealthCalcFunc)(const GameCharacter&);//函数指针
+        explicit GameCHaracter(HealthCalcFunc hcf = defaultHealthCalc):healthFunc(hcf){}//可以换一个函数的
+        int healthValue()const{return healthFunc(*this);}
+    private:
+        HealthCalcFunc healthFunc;
+    }
+
+    如果将函数指针换成函数对象的话，会有更具有弹性的效果：
+
+    typedef std::tr1::function<int (const GameCharacter&)> HealthCalcFunc;
+    在这种情况下，HealthCalcFunc是一个typedef，他的行为更像一个函数指针，表示“接受一个reference指向const GameCharacter，并且返回int*”，
+
+总结：这一节表示当我们为了解决问题而寻找某个特定设计方法时，不妨考虑virtual函数的替代方案
++ 使用NVI手法，他是用public non-virtual成员函数包裹较低访问性（private和protected）的virtual函数
++ 将virtual函数替换成“函数指针成员变量”，这是strategy设计模式的一种表现形式
++ 以tr1::function成员变量替换virtual函数，因而允许使用任何可调用物（callable entity）搭配一个兼容与需求的签名式
++ 将继承体系内的virtual函数替换成另一个继承体系内的virtual函数
+
++ 将机能从成员函数移到class外部函数，带来的一个缺点是：非成员函数无法访问class的non-public成员
++ tr1::function对象就像一般函数指针，这样的对象可接纳“与给定之目标签名式兼容”的所有可调用物（callable entities）
 
 **36. 绝不重新定义继承而来的non-virtual函数  （Never redefine an inherited non-virtual function)**
+
+主要是考虑一下的代码：
+    class B{
+    public:
+        void mf();
+    }
+    class D : public B{
+    public:
+        void mf();
+    };
+
+    D x;
+
+    B *pB = &x; pB->mf(); //调用B版本的mf
+    D *pD = &x; pD->mf(); // 调用D版本的mf
+
+即使不考虑这种代码层的差异，如果这样重定义的话，也不符合之前的“每一个D都是一个B”的定义
+
+
+
+
 
 **37. 绝不重新定义继承而来的缺省参数值  （Never redefine a function's inherited default parameter value)**
 
