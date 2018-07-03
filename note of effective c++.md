@@ -878,8 +878,30 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
 
 **39. 明智而审慎地使用private继承  （Use private inheritance judiciously)**
 
+因为private继承并不是is-a的关系，即有一部分父类的private成员是子类无法访问的，而且经过private继承以后，子类的所有成员都是private的，意思是is implemented in terms of（根据某物实现出），有点像38条的复合。所以大部分时间都可以用复合代替private继承。
+
+当我们需要两个并不存在“is a”关系的类，同时一个类需要访问另一个类的protected成员的时候，我们可以使用private继承
+
+总结：
++ private 继承意味着is implemented in terms of， 通常比复合的级别低，但是当derived class 需要访问protect base class 的成员，或者需要重新定义继承而来的virtual函数时，这么设计是合理的。
++ 和复合不同，private继承可以造成empty base最优化，这对致力于“对象尺寸最小化”的程序库开发者而言，可能很重要
+
 **40. 明智而审慎地使用多重继承  （Use multiple inheritance judiciously)**
 
+多重继承很容易造成名字冲突：
+    
+    class BorrowableItem{
+        public:
+        void checkOut();
+    };
+    class ElectronicGadget{
+        bool checkOut()const;
+    };
+    class MP3Player:public BorrowableItem, public ElectronicGadget{...};
+    MP3Player mp;
+    mp.checkOut();//歧义，到底是哪个类的函数
+    只能使用：
+    mp.BorrowableItem::checkOut();
 
 
 
