@@ -840,15 +840,41 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
 
 即使不考虑这种代码层的差异，如果这样重定义的话，也不符合之前的“每一个D都是一个B”的定义
 
-
-
-
-
 **37. 绝不重新定义继承而来的缺省参数值  （Never redefine a function's inherited default parameter value)**
 
-
+原代码：
+    
+    class Shape{
+    public:
+        enum ShapeColor {Red, Green, Blue};
+        virtual void draw(ShapeColor color=Red)const = 0;
+    };
+    class Rectangle : public Shape{
+    public:
+        virtual void draw(ShapeColor color=Green)const;//和父类的默认参数不同
+    }
+    Shape* pr = new Rectangle; // 注意此时pr的静态类型是Shape，但是他的动态类型是Rectangle
+    pr->draw(); //virtual函数是动态绑定，而缺省参数值是静态绑定，所以会调用Red
 
 **38. 通过复合塑模出has-a或"根据某物实现出"  （Model "has-a" or "is-implemented-in-terms-of" through composition)**
+
+复合：一个类里面有另外一个类的成员，那么这两个类的成员关系就叫做复合（或称聚合，内嵌，内含等）。
+我们认为复合的关系是“has a”的概念，
+
+例如：set并不是一个list，但是set可以has a list：
+    
+    template<class T>
+    class Set{
+    public: 
+        void insert();
+        //.......
+    private:
+        std::list<T> rep;
+    }
+
+总结：
++ 复合（composition）的意义和public继承完全不同
++ 在应用域（application domain），复合意味着has a，在实现域（implementation domain），复合意味着 is implemented-in-terms-of
 
 **39. 明智而审慎地使用private继承  （Use private inheritance judiciously)**
 
