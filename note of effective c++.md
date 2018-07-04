@@ -903,11 +903,51 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
     只能使用：
     mp.BorrowableItem::checkOut();
 
+在实际应用中, 经常会出现两个类继承与同一个父类，然后再有一个类多继承这两个类：
+    
+    class Parent{...};
+    class First : public Parent(...);
+    class Second : public Parent{...};
+    class last:public First, public Second{...};
+当然，多重继承也有他合理的用途，例如一个类刚好继承自两个类的实现。
 
+总结：
++ 多重继承容易产生歧义
++ virtual继承会增加大小、速度、初始化复杂度等成本，如果virtual base class不带任何数据，将是最具使用价值的情况
++ 多重继承的使用情况：当一个类是“public 继承某个interface class”和“private 继承某个协助实现的class”两个相结合的时候。
 
 #### 七、模板与泛型编程 (Templates and Generic Programming)
 
 **41. 了解隐式接口和编译期多态 （Understand implicit interfaces and compile-time polymorphism)**
+
+对于面向对象编程：以显式接口（explicit interfaces）和运行期多态（runtime polymorphism）解决问题：
+    
+    class Widget {
+    public:
+        Widget();
+        virtual ~Widget();
+        virtual std::size_t size() const;
+        void swap(Widget& other); //第25条
+    }
+
+    void doProcessing(Widget& w){
+        if(w.size()>10){...}
+    }
+
++ 在上面这段代码中，由于w的类型被声明为Widget，所以w必须支持Widget接口，我们可以在源码中找出这个接口，看看他是什么样子（explicit interface），也就是他在源码中清晰可见
++ 由于Widget的某些成员函数是virtual，w对于那些函数的调用将表现运行期多态，也就是运行期间根据w的动态类型决定调用哪一个函数
+
+在templete编程中：隐式接口（implicit interface）和编译器多态（compile-time polymorphism）更重要：
+    
+    template<typename T>
+    void doProcessing(T& w)
+    {
+        if(w.size()>10){...}
+    }
++ 在上面这段代码中，w必须支持哪一种接口，由template中执行于w身上的操作来决定，例如T必须支持size等函数。这叫做隐式接口
++ 凡涉及到w的任何函数调用，例如operator>，都有可能造成template具现化，使得调用成功，根据不同的T调用具现化出来不同的函数，这叫做编译期多态
+
+
 
 
 **42. 了解typename的双重意义 （Understand the two meanings of typename)**
