@@ -947,13 +947,27 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
 + 在上面这段代码中，w必须支持哪一种接口，由template中执行于w身上的操作来决定，例如T必须支持size等函数。这叫做隐式接口
 + 凡涉及到w的任何函数调用，例如operator>，都有可能造成template具现化，使得调用成功，根据不同的T调用具现化出来不同的函数，这叫做编译期多态
 
-
-
-
 **42. 了解typename的双重意义 （Understand the two meanings of typename)**
 
+下面一段代码：
+    
+    template<typename C>
+    void print2nd(const C& container){
+        if(container.size() >=2)
+            typename C::const_iterator iter(container.begin());//这里的typename表示C::const_iterator是一个类型名称，
+                                                               //因为有可能会出现C这个类型里面没有const_iterator这个类型
+                                                               //或者C这个类型里面有一个名为const_iterator的变量
+    }
+所以，在任何时候想要在template中指定一个嵌套从属类型名称（dependent names，依赖于C的类型名称），前面必须添加typename
+
++ 声明template参数时，前缀关键字class和typename是可以互换的
++ 需要使用typename标识嵌套从属类型名称，但不能在base class lists（基类列）或者member initialization list（成员初始列）内以它作为base class修饰符 
+    
+    template<typename T>
+    class Derived : public typename Base<T> ::Nested{}//错误的！！！！！
 
 **43. 学习处理模板化基类内的名称 （Know how to access names in templatized base classes)**
+
 
 
 **44. 将与参数无关的代码抽离templates （Factor parameter-independent code out of templates)**
