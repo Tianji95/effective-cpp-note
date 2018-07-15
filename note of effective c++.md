@@ -968,39 +968,328 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
 
 **43. 学习处理模板化基类内的名称 （Know how to access names in templatized base classes)**
 
+原代码：
+    
+    class CompanyA{
+    public:
+        void sendCleartext(const std::string& msg);
+        ....
+    }
+    class CompanyB{....}
 
+    template <typename Company>
+    class MsgSender{
+    public:
+        void sendClear(const MsgInfo& info){
+            std::string msg;
+            Company c;
+            c.sendCleartext(msg);
+        }
+    }
+    template<typename Company>//想要在发送消息的时候同时写入log，因此有了这个类
+    class LoggingMsgSender:public MsgSender<Company>{
+        public:
+        void sendClearMsg(const MsgInfo& info){
+            //记录log
+            sendClear(info);//无法通过编译，因为找不到一个特例化的MsgSender<company>
+        }
+    }
+
+解决方法1（认为不是特别好）：
+
+    template <> // 生成一个全特例化的模板
+    class MsgSender<CompanyZ>{  //和一般的template，但是没有sendClear,当Company==CompanyZ的时候就没有sendClear了
+    public:
+        void sendSecret(const MsgInfo& info){....}
+    }
+
+解决方法2（使用this）：
+
+    template<typename Company>
+    class LoggingMsgSender:public MsgSender<Company>{
+        public:
+        void sendClearMsg(const MsgInfo& info){
+            //记录log
+            this->sendClear(info);//假设sendClear将被继承
+        }
+    }
+
+解决方法3（使用using）：
+
+    template<typename Company>
+    class LoggingMsgSender:public MsgSender<Company>{
+        public:
+
+        using MsgSender<Company>::sendClear; //告诉编译器，请他假设sendClear位于base class里面
+
+        void sendClearMsg(const MsgInfo& info){
+            //记录log
+            sendClear(info);//假设sendClear将被继承
+        }
+    }
+
+解决方法4（指明位置）：
+
+    template<typename Company>
+    class LoggingMsgSender:public MsgSender<Company>{
+        public:
+        void sendClearMsg(const MsgInfo& info){
+            //记录log
+            MsgSender<Company>::sendClear(info);//假设sendClear将被继承
+        }
+    }
+
+上面那些做法都是对编译器说：base class template的任何特例化版本都支持其一般版本所提供的接口
 
 **44. 将与参数无关的代码抽离templates （Factor parameter-independent code out of templates)**
 
+主要是会让编译器编译出很长的臃肿的二进制码，所以要把参数抽离，看以下代码：
+    
+    template<typename T, std::size_t n>
+    class SquareMatrix{
+        public:
+        void invert();    //求逆矩阵
+    }
+
+    SquareMatrix<double, 5> sm1;
+    SquareMatrix<double, 10> sm2;
+    sm1.invert(); 
+    sm2.invert(); //会具现出两个invert并且基本完全相同
+
+修改后的代码：
+    
+    template<typename T>
+    class SquareMatrixBase{
+        protected:
+        void invert(std::size_t matrixSize);
+    }
+
+    template<typename T, std::size_t n>
+    class SquareMatrix:private SquareMatrixBase<T>{
+        private:
+        using SquareMatrixBase<T>::invert;  //避免遮掩base版的invert
+        public:
+        void invert(){ this->invert(n); }   //一个inline调用，调用base class版的invert
+    }
+
+当然因为矩阵数据可能会不一样，例如5x5的矩阵和10x10的矩阵计算方式会不一样，输入的矩阵数据也会不一样，采用指针指向矩阵数据的方法会比较好：
+    
+    template<typename T, std::size_t n>
+    class SquareMatrix:: private SquareMatrixBase<T>{
+        public:
+        SquareMatrix():SquareMatrixBase<T>(n, 0), pData(new T[n*n]){
+            this->setDataPtr(pData.get());
+        }
+        private:
+        boost::scoped_array<T> pData; //存在heap里面
+    };
+
+总结：
++ templates生成多个classes和多个函数，所以任何template代码都不该与某个造成膨胀的template参数产生依赖关系
++ 因非类型模板参数（non-type template parameters）而造成的代码膨胀，往往可以消除，做法是以函数参数后者class成员变量替换template参数
++ 因类型参数（type parameters）而造成的代码膨胀，往往可以降低，做法是让带有完全相同的二进制表述的具现类型，共享实现码
 
 **45. 运用成员函数模板接受所有兼容类型 （Use member function templates to accept "all compatible types.")**
 
+    Top* pt2 = new Bottom; //将Bottom*转换为Top*是很容易的
+    template<typename T>
+    class SmartPtr{
+        public:
+        explicit SmartPtr(T* realPtr);
+    };
+    SmartPtr<Top> pt2 = SmartPtr<Bottom>(new Bottom);//将SmartPtr<Bottom>转换成SmartPtr<Top>是有些麻烦的
+
+但是我们只是希望SmartPtr<Bottom>转换成SmartPtr<Top>，而不希望SmartPtr<Top>转换成SmartPtr<Bottom>
+这种需求可以通过构造模板来实现：
+    
+    template<typename T>
+    class SmartPtr{
+    public:
+        template<typename U>
+        SmartPtr(const SmartPtr<U>& other)  //为了生成copy构造函数
+            :heldPtr(other.get()){....}
+        T* get() const { return heldPtr; }
+    private:
+        T* heldPtr;                        //这个SmartPtr持有的内置原始指针
+    };
+
+总结:
++ 使用成员函数模板生成“可接受所有兼容类型”的函数
++ 如果还想泛化copy构造函数、操作符重载等，同样需要在前面加上template
 
 **46. 需要类型转换时请为模板定义非成员函数 （Define non-member functions inside templates when type conversions are desired)**
 
+像第24条一样，当我们进行混合类型算术运算的时候，会出现编译通过不了的情况
+    
+    template<typename T>
+    const Rational<T> operator* (const Rational<T>& lhs, const Rational<T>& rhs){....}
+
+    Rational<int> oneHalf(1, 2);
+    Rational<int> result = oneHalf * 2; //错误，无法通过编译
+
+解决方法：使用friend声明一个函数,进行混合式调用
+    
+    template<typename T>
+    class Rational{
+        public:
+        friend const Rational operator*(const Rational& lhs, const Rational& rhs){
+            return Rational(lhs.numerator()*rhs.numerator(), lhs.denominator() * rhs.denominator());
+        }
+    };
+    template<typename T>
+    const Rational<T> operator*(const Rational<T>& lhs, const Rational<T>&rhs){....}
+
+总结：
++ 当我们编写一个class template， 而他所提供的“与此template相关的”函数支持所有参数隐形类型转换时，请将那些函数定义为classtemplate内部的friend函数
 
 **47. 请使用traits classes表现类型信息 （Use traits classes for information about types)**
 
+traits是一种允许你在编译期间取得某些类型信息的技术，或者受是一种协议。这个技术的要求之一是：他对内置类型和用户自定义类型的表现必须是一样的。
+    
+    template<typename T>
+    struct iterator_traits;  //迭代器分类的相关信息
+                             //iterator_traits的运作方式是，针对某一个类型IterT，在struct iterator_traits<IterT>内一定声明//某个typedef名为iterator_category。这个typedef 用来确认IterT的迭代器分类
+    一个针对deque迭代器而设计的class大概是这样的
+    template<....>
+    class deque{
+        public:
+        class iterator{
+            public:
+            typedef random_access_iterator_tag iterator_category;
+        }
+    }
+    对于用户自定义的iterator_traits，就是有一种“IterT说它自己是什么”的意思
+    template<typename IterT>
+    struct iterator_traits{
+        typedef typename IterT::iterator_category iterator_category;
+    }
+    //iterator_traits为指针指定的迭代器类型是：
+    template<typename IterT>
+    struct iterator_traits<IterT*>{
+        typedef random_access_iterator_tag iterator_category;
+    }
+
+综上所述，设计并实现一个traits class：
++ 确认若干你希望将来可取得的类型相关信息，例如对迭代器而言，我们希望将来可取得其分类
++ 为该信息选择一个名称（例如iterator_category）
++ 提供一个template和一组特化版本（例如iterator_traits)，内含你希望支持的类型相关信息
+
+在设计实现一个traits class以后，我们就需要使用这个traits class：
+    
+    template<typename IterT, typename DistT>
+    void doAdvance(IterT& iter, DistT d, std::random_access_iterator_tag){ iter += d; }//用于实现random access迭代器
+    template<typename IterT, typename DistT>
+    void doAdvance(IterT& iter, DistT d, std::bidirectional_iterator_tag){ //用于实现bidirectional迭代器
+        if(d >=0){
+            while(d--)
+                ++iter;
+        }
+        else{
+            while(d++)
+                --iter;
+        }
+    }
+
+    template<typename IterT, typename DistT>
+    void advance(IterT& iter, DistT d){
+        doAdvance(iter, d, typename std::iterator_traits<IterT>::iterator_category());
+    }
+使用一个traits class:
++ 建立一组重载函数（像劳工）或者函数模板（例如doAdvance），彼此间的差异只在于各自的traits参数，令每个函数实现码与其接受traits信息相应
++ 建立一个控制函数（像工头）或者函数模板（例如advance），用于调用上述重载函数并且传递traits class所提供的信息
+
 **48. 认识template元编程 （Be aware of template metaprogramming)**
+
+Template metaprogramming是编写执行于编译期间的程序，因为这些代码运行于编译器而不是运行期，所以效率会很高，同时一些运行期容易出现的问题也容易暴露出来
+    
+    template<unsigned n>
+    struct Factorial{
+        enum{
+            value = n * Factorial<n-1>::value
+        };
+    };
+    template<>
+    struct Factorial<0>{
+        enum{ value = 1 };
+    };                       //这就是一个计算阶乘的元编程
 
 
 #### 八、定制new和delete (Customizing new and delete)
 
 **49. 了解new-handler的行为 （Understand the behavior of the new-handler)**
 
+当new无法申请到新的内存的时候，会不断的调用new-handler，直到找到足够的内存,new_handler是一个错误处理函数：
+    namespace std{
+        typedef void(*new_handler)();
+        new_handler set_new_handler(new_handler p) throw();
+    }
+
+一个设计良好的new-handler要做下面的事情：
++ 让更多内存可以被使用
++ 安装另一个new-handler，如果目前这个new-handler无法取得更多可用内存，或许他知道另外哪个new-handler有这个能力，然后用那个new-handler替换自己
++ 卸除new-handler
++ 抛出bad_alloc的异常
++ 不返回，调用abort或者exit
+
+new-handler无法给每个class进行定制，但是可以重写new运算符，设计出自己的new-handler
+此时这个new应该类似于下面的实现方式：
+    
+    void* Widget::operator new(std::size_t size) throw(std::bad_alloc){
+        NewHandlerHolder h(std::set_new_handler(currentHandler));      // 安装Widget的new-handler
+        return ::operator new(size);                                   //分配内存或者抛出异常，恢复global new-handler
+    }
+
+总结：
++ set_new_handler允许客户制定一个函数，在内存分配无法获得满足时被调用
++ Nothrow new是一个没什么用的东西
+
 **50. 了解new和delete的合理替换时机 （Understand when it makes sense to replace new and delete)**
+
++ 用来检测运用上的错误，如果new的内存delete的时候失败掉了就会导致内存泄漏，定制的时候可以进行检测和定位对应的失败位置
++ 为了强化效率（传统的new是为了适应各种不同需求而制作的，所以效率上就很中庸）
++ 可以收集使用上的统计数据
++ 为了增加分配和归还内存的速度
++ 为了降低缺省内存管理器带来的空间额外开销
++ 为了弥补缺省分配器中的非最佳对齐位
++ 为了将相关对象成簇集中起来
 
 **51. 编写new和delete时需固守常规（Adhere to convention when writing new and delete)**
 
++ 重写new的时候要保证49条的情况，要能够处理0bytes内存申请等所有意外情况
++ 重写delete的时候，要保证删除null指针永远是安全的
+
 **52. 写了placement new也要写placement delete（Write placement delete if you write placement new)**
 
+如果operator new接受的参数除了一定会有的size_t之外还有其他的参数，这个就是所谓的palcement new
+
+void* operator new(std::size_t, void* pMemory) throw(); //placement new
+static void operator delete(void* pMemory) throw();     //palcement delete，此时要注意名称遮掩问题
+ 
 #### 杂项讨论 (Miscellany)
 
 **53. 不要轻忽编译器的警告（Pay attention to compiler warnings)**
 
++ 严肃对待编译器发出的warning， 努力在编译器最高警告级别下无warning
++ 同时不要过度依赖编译器的警告，因为不同的编译器对待事情的态度可能并不相同，换一个编译器警告信息可能就没有了
+
 **54. 让自己熟悉包括TR1在内的标准程序库 （Familiarize yourself with the standard library, including TR1)**
 
+其实感觉这一条已经有些过时了，不过虽然过时，但是很多地方还是有用的
++ smart pointers
++ tr1::function ： 表示任何callable entity（可调用物，只任何函数或者函数对象）
++ tr1::bind是一种stl绑定器
++ Hash tables例如set，multisets， maps等
++ 正则表达式
++ tuples变量组
++ tr1::array：本质是一个STL化的数组
++ tr1::mem_fn:语句构造上与程艳函数指针一样的东西
++ tr1::reference_wrapper： 一个让references的行为更像对象的东西
++ 随机数生成工具
++ type traits
+
 **55. 让自己熟悉Boost （Familiarize yourself with Boost)**
+
+主要是因为boost是一个C++开发者贡献的程序库，代码相对比较好
 
 
 
@@ -1008,11 +1297,24 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
 ## More Effective C++
 
 
+
 #### 一、基础议题
 
 **1. 区分指针和引用**
 
+引用必须指向一个对象，而不是空值，下面是一个危险的例子：
+    
+    char* pc = 0;  //设置指针为空值
+    char& rc = *pc;//让引用指向空值，很危险！！！
+
+下面的情况下使用指针：
++ 存在不指向任何对象的可能
++ 需要能够在不同的时刻指向不同的对象
+其他情况应该使用引用
+
 **2. 优先考虑C++风格的类型转换**
+
+上本书说过了，第27条
 
 **3. 决不要把多态用于数组**
 
