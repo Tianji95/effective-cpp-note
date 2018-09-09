@@ -1318,6 +1318,16 @@ static void operator delete(void* pMemory) throw();     //palcement delete，此
 
 **3. 决不要把多态用于数组**
 
+主要是考虑以下写法：
+    
+    class BST{...}
+    class BalancedBST : public BST{...}
+
+    void printBSTArray(const BST array[]){
+        for(auto i : array){
+            std::cout << *i;
+        }
+    }
 
 **4. 避免不必要的默认构造函数**
 
