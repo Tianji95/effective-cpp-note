@@ -1423,15 +1423,54 @@ static void operator delete(void* pMemory) throw();     //palcement delete，此
 
 **7. 不要重载"&&"、"||"和","**
 
+主要是因为上面三个符号，大部分的程序员都已经达成共识，先运算前面的一串表达式，再判断后面的一串表达式：
+if(expression1 && expression2){} 就会先运算第一个表达式，然后再运算第二个表达式
 
+比较特殊的是逗号操作符：“,“，例如最常见的for循环：
+    
+    for(int i = 0, j = strlen(s)-1; i < j; i++, j--){}
+
+在这个for循环里面，因为最后一个部分职能使用一个表达式，分开表达式来改变i和j的值是不合法的，用逗号表达式就会先计算出来左边的i++，然后计算出逗号右边的j--
 
 **8. 理解new和delete在不同情形下的含义**
 
+两种new: new 操作符（new operator）和new操作（operator new）的区别
+
+    string *ps = new string("Memory Management"); //使用的是new操作符，这个操作符像sizeof一样是内置的，无法改变
+
+    void* operator new(size_t size); // new操作，可以重写这个函数来改变如何分配内存
+
+一般不会直接调用operator new，但是可以像调用其他函数一样调用他：
+
+    void* rawMemory = operator new(sizeof(String));
+
+placement new : placement new 是有一些已经被分配但是没有被处理的内存，需要在这个内存里面构造一个对象，使用placement new 可以实现这个需求，实现方法：
+    
+    class Widget{
+        public:
+            Widget(int widgetSize);
+        ....
+    };
+
+    Widget* constructWidgetInBuffer(void *buffer, int widgetSize){
+        return new(buffer) Widget(widgetSize);
+    }
+
+这样就返回一个指针，指向一个Widget对象，对象在传递给函数的buffer里面分配
+
+同样的道理：
+    delete buffer; //指的是先调用buffer的析构函数，然后再释放内存
+    operator delete(buffer); //指的是只释放内存，但是不调用析构函数
+
+而placement new 出来的内存，就不应该直接使用delete操作符，因为delete操作符使用operator delete来释放内存，但是包含对象的内存最初不是被operator new分配的，而应该显示调用析构函数来消除构造函数的影响
+
+new[]和delete[]就相当于对每一个数组元素调用构造和析构函数
 
 #### 三、异常
 
-
 **9. 使用析构函数防止资源泄漏**
+
+
 
 **10. 防止构造函数里的资源泄漏**
 
