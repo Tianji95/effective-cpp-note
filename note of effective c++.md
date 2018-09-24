@@ -1470,13 +1470,126 @@ new[]和delete[]就相当于对每一个数组元素调用构造和析构函数
 
 **9. 使用析构函数防止资源泄漏**
 
+原代码：
+    
+    void processAdoptions(istream& dataSource){
+        while(dataSource){
+            ALA *pa = readALA(dataSource);
+        }
+        try{
+            pa->processAdoption();
+        }
+        catch(...){
+            delete pa; //在抛出异常的时候避免泄露
+            throw;
+        }
+        delete pa;     //在不抛出异常的时候避免泄露
+    }
 
+因为这种情况会需要删除两次pa，代码维护很麻烦，所以需要进行优化：
+
+template<class T>
+class auto_ptr{
+public:
+    auto_ptr(T *p=0):ptr(p){} //保存ptr，指向对象
+    ~auto_ptr(){delete prt;}
+private:
+    T *ptr;    
+}
+
+void processAdoptions(istream& dataSource){
+    while(dataSource){
+        auto_ptr<ALA> pa(readALA(dataSource));
+        pa->processAdoption();
+    }
+}
+
+auto_ptr后面隐藏的思想是：使用一个对象来存储需要被自动释放的资源，然后依靠对象的析构函数来释放资源。
+事实上WindowHandle就是这样一个东西
+
+那么这样就引出一个非常重要的规则：资源应该被封装在一个对象里面
 
 **10. 防止构造函数里的资源泄漏**
 
+这一条主要是防止在构造函数中出现异常导致资源泄露：
+    
+    BookEntry::BookEntry(){
+        theImage     = new Image(imageFileName);
+        theAudioClip = new AudioClip(audioClipFileName);
+    }
+    BookEntry::~BookEntry(){
+        delete theImage;
+    }
+
+如果在构造函数new AudioClip里面出现异常的话，那么~BookEntry析构函数就不会执行，那么NewImage就永远不会被删除，而且因为new BookEntry失败，导致delete BookEntry也无法释放theImage，那么只能在构造函数里面使用异常来避免这个问题
+    
+    BookEntry::BookEntry(){
+        try{
+            theImage     = new Image(imageFileName);
+            theAudioClip = new AudioClip(audioClipFileName);
+        }
+        catch(...){
+            delete theImage;
+            delete theAudioClip;
+            //上面一段代码和析构函数里面的一样，所以可以直接封装成一个成员函数cleanup：
+            cleanup();
+            throw;
+        }
+    }
+
+更好的做法是将theImage和theAudioClip做成成员来进行封装：
+    
+    class BookEntry{
+    public:......
+    private:
+        const auto_ptr<Image> theImage;
+        const auto_ptr<AudioClip> theAudioClip;
+    }
+
+
 **11. 阻止异常传递到析构函数以外**
 
-**12. 理解抛出异常与传递参数或者调用虚函数之间的不同**
+如果析构函数抛出异常的话，会导致程序直接调用terminate函数，中止程序而不释放对象，所以不应该让异常传递到析构函数外面，而是应该在析构函数里面直接catch并且处理掉
+
+另外，如果析构函数抛出异常的话，那么析构函数就不会完全运行，就无法完成希望做的一些其他事情例如：
+    
+    Session::~Session(){
+        logDestruction(this);
+        endTransaction(); //结束database transaction,如果上面一句失败的话，下面这句就没办法正确执行了
+    }
+
+**12. 理解“抛出异常”，“传递参数”和“调用虚函数”之间的不同**
+
+传递参数的函数：
+    void f1(Widget w);
+catch子句：    
+    catch(widget w)... 
+
+上面两行代码的相同点：传递函数参数与异常的途径可以是传值、传递引用或者传递指针
+
+上面两行代码的不同点：系统所需要完成操作的过程是完全不同的。调用函数时程序的控制权还会返回到函数的调用处，但是抛出一个异常时，控制权永远都不会回到抛出异常的地方
+三种捕获异常的方法：
+    
+    catch(Widget w);
+    catch(Widget& w);
+    catch(const Widget& w);
+
+一个被抛出的对象可以通过普通的引用捕获，它不需要通过指向const对象的引用捕获，但是在函数调用中不允许传递一个临时对象到一个非const引用类型的参数里面
+同时异常抛出的时候实际上是抛出对象创建的临时对象的拷贝，
+
+另外一个区别就是在try语句块里面，抛出的异常不会进行类型转换（除了继承类和基类之间的类型转换，和类型化指针转变成无类型指针的变换），例如：
+    
+    void f(int value){
+        try{
+            throw value; //value可以是int也可以是double等其他类型的值
+        }
+        catch(double d){
+            ....         //这里只处理double类型的异常，如果遇到int或者其他类型的异常则不予理会
+        }
+    }
+
+最后一个区别就是，异常catch的时候是按照顺序来的，即如果两个catch并且存在的话，会优先进入到第一个catch里面，但是函数则是匹配最优的
+
 
 **13. 通过引用捕获异常**
 
