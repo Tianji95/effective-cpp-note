@@ -1590,37 +1590,229 @@ catch子句：
 
 最后一个区别就是，异常catch的时候是按照顺序来的，即如果两个catch并且存在的话，会优先进入到第一个catch里面，但是函数则是匹配最优的
 
-
 **13. 通过引用捕获异常**
 
-**14. 审慎地使用异常规格**
+使用指针方式捕获异常：不需要拷贝对象，是最快的,但是，程序员很容易忘记写static，如果忘记写static的话，会导致异常在抛出后，因为离开了作用域而失效：
+    
+    void someFunction(){
+        static exception ex;
+        throw &ex;
+    }
+    void doSomething(){
+        try{
+            someFunction();
+        }
+        catch(exception *ex){...}
+    }
+创建堆对象抛出异常：new exception 不会出现异常失效的问题，但是会出现在捕捉以后是否应该删除他们接受的指针，在哪一个层级删除指针的问题
+通过值捕获异常：不会出现上述问题，但是会在被抛出时系统将异常对象拷贝两次，而且会出现派生类和基类的slicing problem，即派生类的异常对象被作为基类异常对象捕获时，会把派生类的一部分切掉，例如：
+    
+    class exception{
+    public:
+        virtual const char *what() throw();
+    };
+    class runtime_error : public exception{...};
+    void someFunction(){
+        if(true){
+            throw runtime_error();
+        }
+    }
+    void doSomething(){
+        try{
+            someFunction();
+        }
+        catch(exception ex){
+            cerr << ex.what(); //这个时候调用的就是基类的what而不是runtime_error里面的what了，而这个并不是我们想要的
+        }
+    }
+
+通过引用捕获异常：可以避免上面所有的问题，异常对象也只会被拷贝一次：
+    
+    void someFunction(){...} //和上面一样
+    void doSomething(){
+        try{...}             //和上面一样
+        catch(exception& ex){
+            cerr << ex.what(); //这个时候就是调用的runtime_error而不是基类的exception::what()了，其他和上面其实是一样的
+        }
+    }
+
+**14. 审慎地使用异常规格（exception specifications）**
+
+异常规格指的是函数指定只能抛出异常的类型：
+    
+    extern void f1();    //f1可以抛出任意类型的异常
+    void f2() throw(int);//f2只能抛出int类型的异常
+    void f2() throw(int){ 
+         f1();           //编译器会因为f1和f2的异常规格不同而在发出异常的时候调用unexpected
+    }
+
+在用模板的时候，会让这种情况更为明显：
+    
+    template<class T>
+    bool operator==(const T& lhs, const T&rhs) throw(){
+        return &lhs == &rhs;
+    }
+这个模板为所有的类型定义了一个操作符函数operator==对于任意一对相同类型的对象，如果有一样的地址，则返回true，否则返回false，单单这么一个函数可能不会抛出异常，但是如果有operator&重载时，operator&可能会抛出异常，这样就违反了异常规则，让程序跳转到unexpected
+
+阻止程序跳转到unexpected的三种方法：
+将所有的unexpected异常都替换成UnexpectedException对象：
+    
+    class UnexpectedException{}; //所有的unexpected异常对象都被替换成这种对象
+    void convertUnexpected(){       //如果一个unexpected异常被抛出，这个函数就会被调用
+        throw UnexpectedException();
+    }
+    set_unexpected(convertUnexpected);
+替换unexpected函数：
+    void convertUnexpected(){ //如果一个unexpected异常被抛出，这个函数被调用
+        throw;                //只是重新抛出当前的异常
+    }
+    set_unexpected(convertUnexpected);//安装convertUnexpected作为unexpected的替代品，此方法应该在所有的异常规格里面包含bad_exception
+
+总结：异常规格应该在加入之前谨慎的考虑它带来的行为是否是我们所希望的
 
 
 **15. 理解异常处理所付出的代价**
 
+编译器带来的开销（很难消除，因为所有的编译器都是支持异常的
+try块语句的开销：大概会降低5%-10%的速度和增加相应的代码尺寸
 
 #### 四、效率
 
-
 **16. 记住80-20准则**
+
+分别有20%的代码耗用了80%的程序资源，运行时间，内存，磁盘，有80%的维护投入到20%的代码上
+用profiler工具来对程序进行分析
 
 **17. 考虑使用延迟计算**
 
-**18. 分期摊还预期的计算开销**
+一个延迟计算的例子：
+    class String{....}
+    String s1 = "Hello";
+    String s2 = s1;  //在正常的情况下，这一句需要调用new操作符分配堆内存，然后调用strcpy将s1内的数据拷贝到s2里面。但是我们此时s2并没有被使用，所以我们不需要s2，这个时候如果让s2和s1共享一个值，就可以减小这些开销
+
+使用延迟计算进行读操作和写操作：
+    String s = "Homer's Iliad";
+    cout << s[3];
+    s[3] = 'x';
+首先调用operator[] 用来读取string的部分值，但是第二次调用该函数式为了完成写操作。读取效率较高，写入因为需要拷贝，所以效率较低，这个时候可以推迟作出是读操作还是写操作的决定。
+
+延迟策略进行数据库操作：有点类似之前写web 的时候，把数据放在内存和数据库两份，更新的时候只更新内存，然后隔一段时间（或者等到使用的时候）去更新数据库。
+在effective c++里面，则是更加专业的将这个操作封装成了一个类，然后把是否更新数据库弄成一个flag。以及使用了mutable关键字，来修改数据
+
+延迟表达式：
+    
+    Matrix<int> m1(1000, 1000), m2(1000, 1000);
+    m3 = m1 + m2;
+    因为矩阵的加法计算量太大（1000*1000）次计算，所以可以先用表达式表示m3是m1和m2的和，然后真正需要计算出值的时候再真的进行计算（甚至计算的时候也只计算m3[3][2]这样某一个位置的值）
+
+**18. 分期摊还预期的计算开销（提前计算法）**
+
+例如对于max， min函数，如果被频繁调用的话，就可以专门将min和max缓存城一个m_min成员或者mmax成员，这样就在每次调用的时候直接返回就行了，不需要每次调用的时候就重新计算，这个方法叫做cache
+
+prefetching是另一种方法，例如从磁盘读取数据的时候，一次读取一整块或者整个扇区的数据，因为一次读取一大块要比不同时间读取几个小块要快
 
 **19. 了解临时对象的来源**
 
+通常意义的临时对象指的是 temp = a; a = b; b = temp;中的temp
+但是在C++中的临时对象指的是那些看不见的东西，例如：
+
+    size_t countChar(const string& str, char ch);
+    char buffer[MAX_STRING_LEN];
+    cout << countChar(buffer, c);
+
+对于countChar的调用来说，buffer是一个char的数据，但是其形参是const string，那么就需要建立一个string类型的临时对象，然后用buffer作为参数对这个临时对象进行初始化
+
+另外再如operator+重载函数中，函数的返回值是临时的，因为它没有被命名。
+
+所以在任何时候只要见到函数中的常量引用参数，就存在建立临时对象的可能性
+
 **20. 协助编译器实现返回值优化**
+
+一个返回一整个对象的函数，效率是很低的，因为需要调用对象的析构和构造函数。但是有时候编译器会帮助优化我们的实现：
+    
+    inline const Rational operator*(const Rational& lhs, const Rational& rhs{
+        return Rational(lhs.numerator() * rhs.numerator(), lhs.denominator() * rhs.denominator());
+    }
+
+上面这个操作实在是太骚了，初看起来好像是会创建一个Rational的临时对象，但是实际上编译器会把这个临时对象给优化掉，所以就免除了析构和构造的开销，而inline还可以减少函数的调用开销
 
 **21. 通过函数重载避免隐式类型转换**
 
+改代码之前：
+    class UPInt{
+        public:
+        UPInt();
+        UPInt(int value);
+    }
+    const UPInt operator+(const UPInt& lhs, const UPInt& rhs);
+    upi3 = upi1 + upi2;
+    upi3 = 10 + upi1;  // 会产生隐式类型转换，转换过程中会出现临时对象
+    upi3 = upi1 + 10;
+
+改代码之后：
+    
+    const UPInt operator+(const UPInt& lhs, const UPInt& rhs);
+    const UPInt operator+(const UPInt& lhs, int rhs);
+    const UPInt operator+(int lhs, const UPInt& rhs);
+
 **22. 考虑使用op=来取代单独的op运算符**
+
+operator+ 和operator+=是不一样的，所以如果想要重载+号，就最好重载+=，那么一个比较好的方法就是把+号用+=来实现，当然如果可以的话，可以使用模板编写：
+    
+    template<class T>
+    const T operator+(const T& lhs, const T& rhs)
+    {
+        return T(lhs) += rhs;
+    }
+    template<class T>
+    const T operator-(const T& lhs, const T& rhs){
+        return T(lhs) -= rhs; 
+    }
+
 
 **23. 考虑使用其他等价的程序库**
 
+例如stdio和iostream两个程序库都有输入输出的功能，但是stdio库则速度更快，iostream则写起来更安全。需要合理的选择应用的替代库
+
 **24. 理解虚函数、多重继承、虚基类以及RTTI所带来的开销**
 
+C++的特性和编译器会很大程度上影响程序的效率，所以我们有必要知道编译器在一个C++特性后面做了些什么事情。
 
+例如虚函数，指向对象的指针或者引用的类型是不重要的，大多数编译器使用的是virtual table(vtbl)和virtual table pointers(vptr)来进行实现
+
+vtbl:   
+    class C1{
+    public:
+        C1();
+        virtual ~C1();
+        virtual void f1();
+        virtual int f2(char c)const;
+        virtual void f3(const string& s);
+        void f4()const
+    }
+vtbl的虚拟表类似于下面这样,只有虚函数在里面，非虚函数的f4不在里面：
+ ___
+|___| → ~C1()
+|___| → f1()
+|___| → f2()
+|___| → f3()
+如果按照上面的这种，每一个虚函数都需要一个地址空间的话，那么如果拥有大量虚函数的类，就会需要大量的地址存储这些东西，这个vtbl放在哪里根据编译器的不同而不同
+
+vptr：
+ __________
+|__________| → 存放类的数据
+|__________| → 存放vptr
+
+每一个对象都只存储一个指针，但是在对象很小的时候，多于的vptr将会看起来非常占地方。在使用vptr的时候，编译器会先通过vptr找到对应的vtbl，然后通过vtbl开始找到指向的函数
+事实上对于函数：
+    
+    pC1->f1();
+他的本质是：
+    (*pC1->vptr[i])(pC1);
+
+在使用多继承的时候，vptr会占用很大的地方，并且非常恶心，所以不要用多继承
+
+RTTI：能够让我们在runtime找到对象的类信息，那么就肯定有一个地方存储了这些信息，这个特性也可以使用vtbl实现，把每一个对象，都添加一个隐形的数据成员type_info，来存储这些东西，从而占用很大的空间
 
 #### 五、技巧
 
