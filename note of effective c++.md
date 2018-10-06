@@ -1830,15 +1830,226 @@ RTTI：能够让我们在runtime找到对象的类信息，那么就肯定有一
 
 **25. 使构造函数和非成员函数具有虚函数的行为**
 
+    class NewsLetter{
+    private:
+        static NLComponent *readComponent(istream& str);
+        virtual NLComponent *clone() const = 0;
+    };
+    NewsLetter::NewsLetter(istream& str){
+        while(str){
+            components.push_back(readComponent(str));
+        }
+    }
+    class TextBlock: public NLComponent{
+    public:
+        virtual TextBlock*clone()const{
+            return new TextBlock(*this);
+        }
+    }
+在上面那段代码当中，readComponent就是一个具有构造函数行为（因为能够创建出新的对象）的函数，我们叫做虚拟构造函数
+
+clone() 叫做虚拟拷贝构造函数,相当于拷贝一个新的对象
+
+通过这种方法，我们上面的NewsLetter构造函数就可以这样：
+
+    NewsLetter::NewsLetter(const NewsLetter& rhs){
+        while(str){
+            for(list<NLComponent*>::const_iterator it=rhs.component.begin(); it!=rhs.component.end();it++){
+                components.push_back((*it)->clone());
+            }
+        }
+    }
+这样每一个TextBlock都可以调用他自己的clone，其他的子类也可以调用他们自己对应的clone()
+
 **26. 限制类对象的个数**
 
+比如某个类只应该有一个对象，那么最简单的限制这个个数的方法就是把构造函数放在private域里面，这样每个人都没有权力创建对象
+
+或者做一个约束，每次创建的时候都返回static的对象：
+    
+    class Printer{
+    public:
+        friend Printer& thePrinter();或者static Printer& thePrinter();
+    private:
+        Printer();
+        Printer(const Printer& rhs);
+    };
+    Printer& thePrinter(){
+        static Printer p;
+        return p;
+    }
+上面这段代码中，Printer类的构造函数是private，可以阻止建立对象，全局函数thePrinter被声明为类的友元，让thePrinter避免私有构造函数引起的限制
+
+创建对象的环境：
+当然还有一个直观的方法来限制对象的个数，就是添加一个名为numObjects的static变量，来记录对象的个数，当然这种方法在出现继承的时候会出现问题（一个Printer和一个继承自Printer的colorPrinter同时存在的时候，就会超出numObjects个数，这个时候就需要限制继承
+
+允许对象来去自由：
+如果使用伪构造函数的话，会导致对象销毁后，无法创建新的对象，解决方法就是一起使用上面的伪构造函数和计数器。
+
+一个具有对象计数功能的基类：
+如果拥有大量像Printer这样的类需要进行计数，那么较好的方法就是一次性封装所有的计数功能,需要确保每个进行实例计数的类都有一个相互隔离的计数器，所以模板会比较好:
+    
+    template <class BeingCounted>
+    class Counted{
+    public:
+        class TooManyObjects{};
+        static int objectCount(){return numObjects;}
+    protected:
+        Counted();
+        Counted(const Counted& rhs);
+        ~Counted(){ --numObjects; }
+    private:
+        static int numObjects;
+        static const size_t maxObjects;
+        void init();                 //避免构造函数的代码重复
+    };
+
+    template<class BeingCounted>
+    Counted<BeingCounted>::Counted(){init();}
+
+    template<class BeingCounted>
+    Counted<BeingCounted>::Counted(const Counted<BeingCounted>&){init();}
+
+    template<class BeingCounted>
+    void Counted<BeingCounted>::init(){
+        if(numObjects >= maxObjects)throw TooManyObjects();
+        ++numObjects;
+    }
+
+    class Printer:private Counted<Printer>{
+    public:
+        static Printer* makePrinter(); // 伪构造函数
+        using Counted<Printer>::objectCount;
+        using Counted<Printer>::TooManyObjects;
+    }
 **27. 要求或禁止对象分配在堆上**
+
+必须在堆中建立对象（程序有自我管理对象的需求）：
+禁用隐式的构造函数和析构函数，例如声明成private，或者仅仅让析构函数成为private（副作用小一些），然后创建一个public的destory()方法来调用析构。
+遇到继承析构的问题的话(现在的做法无法继承)，也可以将析构函数声明成protected的
+
+判断一个对象是否在堆中：
+在构造函数中无法区分是否在堆中，但是在new里面可以做些事情：
+    
+    class UPNumber{
+    public:
+        class HeapConstraintViolation{};
+        static void* operator new(size_t size);
+        UPNumber();
+    private:
+        static bool onTheHeap;
+    };
+实际上上面这段代码是跑不了的，因为如果使用new[]创造数组的话就没有办法用了
+
+另一种方法是判断变量所在的地址，因为stack是从高位地址向下的，heap是从地位地址向上的：
+    
+    bool onHeap(const void *address) { 
+        char onTheStack; // 局部栈变量，因为他是新的变量，所以比他小的都在堆或者静态空间里面，比他大的都在栈里面
+        return address < &onTheStack; 
+    }
+
+禁止堆对象：
+重写operator new就行了，例如弄成private
 
 **28. 智能(smart)指针**
 
-**29. 引用计数**
+auto_ptr：会把值给传出去，原来的指针作废掉
+实现dereference（取出指针所指东西的内容）：
+    template<class T>
+    T& SmartPtr<T>::operaotr*()const{
+        return *pointee;
+    }
 
+    template<class T>
+    T* SmartPtr<T>::operator->()const{
+        return pointee;
+    }
+
+测试smart pointer是否是NULL：
+如果直接使用下面的代码是错误的：
+    
+    SmartPtr<TreeNode> ptn;
+    if(ptn == 0)... //error
+    if(ptn)... //error
+    if(!ptn)... //error
+所以需要进行隐式类型转换操作符，才能够进行上面的操作
+    
+    template<class T>
+    class SmartPtr{
+    public:
+        operator void*();
+    };
+    SmartPtr<TreeNode> ptn;
+    if(ptn == 0) //现在正确
+    if(ptn) //现在正确
+    if(!ptn) //现在正确
+
+smart pointer 和继承类/基类的类型转换:
+
+    class MusicProduct{....};
+    class Cassette:public MusicProduct{....};
+    class CD:public MusicProduct{....};
+    displayAndPlay(const SmartPtr<MusicProduct>& pmp, int numTimes);
+
+    SmartPtr<Cassette> funMusic(new Cassette("1234"));
+    SmartPtr<CD> nightmareMusic(new CD("143"));
+    displayAndPlay(funMusic, 10); // 错误!
+    displayAndPlay(nightmareMusic, 0); // 错误!
+我们可以看到的是，如果没有隐式转换操作符的话，是没有办法进行转换的，那么解决方法就是添加一个操作符,：
+    
+    class SmartPtr<Cassette>{//或者用模板来代替
+    public:
+        operator SmartPtr<MusicProduct>(){
+            return SmartPtr<MusicProduct>(pointee);
+        }
+    };
+smart pointer 和 const：
+    
+    SmartPtr<CD> p; //non-const 对象 non-const 指针
+    SmartPtr<const CD> p; //const 对象 non-const 指针
+    const SmartPtr<CD> p = &goodCD; //non-const 对象 const 指针
+    const SmartPtr<const CD> p = &goodCD; //const 对象 const 指针
+
+    template<class T>      // 指向const对象的
+    class SmartPtrToConst{ //灵巧指针
+        ...                // 灵巧指针通常的成员函数
+    protected:
+        union {
+            const T* constPointee; // 让 SmartPtrToConst 访问
+            T* pointee; // 让 SmartPtr 访问
+        };
+    };
+
+    template<class T> // 指向 non-const 对象的灵巧指针
+    class SmartPtr: public SmartPtrToConst<T> {
+        ... // 没有数据成员
+    };
+
+
+**29. 引用计数**
+就是一个smart pointer，不讨论了
 **30. 代理类**
+
+例子：实现二维数组类：
+    
+    template<class T>
+    class Array2D{
+    public:
+        Array2D(int dim1, int dim2);
+        class Array1D{
+        public:
+            T& operator[](int index);
+            const T& operator[](int index) const;
+        };
+        Array1D operator[](int index);
+        const Array1D operator[](int index) const;
+    };
+    Array2D<int> data(10, 20);
+    cout << data[3][6] //这里面的[][]运算符是通过两次重载实现的
+
+例子：代理类区分[]操作符的读写：
+
+
 
 **31. 基于多个对象的虚函数**
 
@@ -1848,9 +2059,66 @@ RTTI：能够让我们在runtime找到对象的类信息，那么就肯定有一
 
 **32. 在将来时态下开发程序**
 
+新的函数会被加入到函数库里面， 将来会出现新的重载（所以要注意哪些含糊的函数调用行为的结果），新的类会加入到继承中，新的环境下运行等。
+
+应该通过代码来描述这些行为，而不仅仅是注释写上。实在拿不定我们类怎么设计的时候，仿照int来写
+
 **33. 将非尾端类设计为抽象类**
 
+如果采用这样的代码：
+
+    class Animal{
+    public:
+        virtual Animal& operator=(const Animal& rhs);
+        ....
+    };
+    class Lizard:public Animal{
+    public:
+        virtual Lizard& operator=(const Animal& rhs);
+    };
+    class Chicken:public Animal{
+    public:
+        virtual Chicken& operator=(const Animal& rhs);
+    }
+则会出现我们不愿意出现的类型转换和赋值：
+    
+    Animal *pAnimal1 = &liz;
+    Animal *pAnimal2 = &chick;
+    *pAnimal1 = *pAnimal2;      //把一个chick赋值给了一个lizard
+
+但是我们又希望下面的操作是可行的：
+    Animal *pAnimal1 = &liz1;
+    Animal *pAnimal2 = &liz2;
+    *pAnimal1 = *pAnimal2;      //正确，把一个lizard赋值给了一个lizard
+
+解决这个问题最简单的方法是使用dynamic_cast进行类型检测，但是还有一个方法就是把Animal设成抽象类或者创建一个抽象Animal类：
+
+    class AbstractAnimal{
+    protected:
+        AbstractAnimal& operator=(const AbstractAnimal& rhs);
+    public:
+        virtual ~AbstractAnimal() = 0;
+    };
+
+    class Animal: public AbstractAnimal{
+    public:
+        Animal& operator=(const Animal& rhs);
+    };
+    class Lizard:public AbstractAnimal{
+    public:
+        virtual Lizard& operator=(const Animal& rhs);
+    };
+    class Chicken:public AbstractAnimal{
+    public:
+        virtual Chicken& operator=(const Animal& rhs);
+    }
+
+感觉这个方法以后会非常有用。。。。
+
 **34. 理解如何在同一程序中混合使用C**
+
+* 名字变换，就是在编译器分别给C++和C不同的前缀
+
 
 **35. 让自己熟悉C++语言标准**
 
