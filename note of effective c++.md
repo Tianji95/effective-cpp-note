@@ -2049,13 +2049,114 @@ smart pointer 和 const：
 
 例子：代理类区分[]操作符的读写：
 
+采用延迟计算方法，修改operator[]让他返回一个（代理字符的）proxy对象而不是字符对象本身，并且判断之后这个代理字符怎么被使用，从而判断是读还是写操作
+    
+    class String{
+    public:
+        class CharProxy{
+        public:
+            CharProxy(String& str, int index);
+            CharProxy& operator=(const CharProxy& rhs);
+            CharProxy& operator=(char c);
+            operator char() const;
+        private:
+            String& theString;
+            int charIndex;
+        };
+        const CharProxy operator[](int index) const;//对于const的Strings
+        CharProxy operator[](int index);            //对于non-const的Strings
 
+        friend class CharProxy;
+    private:
+        RCPtr<StringValue> value;
+    };
 
 **31. 基于多个对象的虚函数**
 
+考虑两个对象碰撞的问题：
+    
+    class GameObject{....};
+    class SpaceShip : public GameObject{....};
+    class SpaceStation : public GameObject{....};
+    class Asteroid : public GameObject{....};
+
+    void checkForCollision(GameObject& object1, GameObject& object2){
+        processCollision(object1, object2);
+    }
+
+当我们调用processCollision的时候，该函数取决于两个不同的对象，但是这个函数并不知道其object1和object2的真实类型，这个时候就要基于多个对象设计虚函数 
+
+解决方法有很多：
+    
+使用虚函数+RTTI：
+
+    class GameObject{
+    public:
+        virtual void collide(GameObject& otherObject) = 0;
+    };
+    class SpaceShip:public GameObject{
+    public:
+        virtual void collide(GameObject& otherObject);
+    };
+    
+    void SpaceShip:collide(GameObject& otherObject){
+        const type_info& objectType = typeid(otherObject);
+        if(objectType == typeid(SpaceShip)){
+            SpaceShip& ss = static_cast<SpaceShip&>(otherObject);
+        }
+        else if(objectType == typeid(SpaceStation)).......
+    }
+只使用虚函数：
+    
+    class SpaceShip; // forward declaration
+    class SpaceStation;
+    class Asteroid;
+    class GameObject { 
+    public:
+        virtual void collide(GameObject&   otherObject) = 0;
+        virtual void collide(SpaceShip&    otherObject) = 0;
+        virtual void collide(SpaceStation& otherObject) = 0;
+        virtual void collide(Asteroid&     otherObject) = 0;
+        ...
+    };
+模拟虚函数表（对继承体系中的函数做一些修改）：
+
+    class SpaceShip : public GameObject { 
+    public:
+        virtual void collide(GameObject&   otherObject);
+        virtual void hitSpaceShip(SpaceShip&    otherObject);
+        virtual void hitSpaceStation(SpaceStation& otherObject);
+        virtual void hitAsteroid(Asteroid&     otherObject);
+        ...
+    };
+初始化模拟虚函数表：
+    
+    class GameObject { // this is unchanged 
+    public: 
+        virtual void collide(GameObject& otherObject) = 0;
+        ...
+    };
+
+    class SpaceShip: public GameObject {
+    public:
+        virtual void collide(GameObject& otherObject);
+        // these functions now all take a GameObject parameter
+        virtual void hitSpaceShip(GameObject& spaceShip);
+        virtual void hitSpaceStation(GameObject& spaceStation);
+        virtual void hitAsteroid(GameObject& asteroid);
+        ...
+    };
+
+    SpaceShip::HitMap * SpaceShip::initializeCollisionMap(){
+        HitMap *phm = new HitMap;
+        (*phm)["SpaceShip"] = &hitSpaceShip;
+        (*phm)["SpaceStation"]= &hitSpaceStation;
+        (*phm)["Asteroid"] = &hitAsteroid;
+        return phm; 
+    }
+
 
 #### 六、杂项
-
 
 **32. 在将来时态下开发程序**
 
@@ -2117,12 +2218,34 @@ smart pointer 和 const：
 
 **34. 理解如何在同一程序中混合使用C**
 
-* 名字变换，就是在编译器分别给C++和C不同的前缀
+名字变换：就是在编译器分别给C++和C不同的前缀，在C语言中，因为没有函数重载，所以编译器没有专门给函数改变名字，但是在C++里面，编译器是要给函数不同的名字的。
 
+C++的extern‘C’可以禁止进行名字变换，例如：
+    
+    extern 'C'
+    void drawLine(int x1, int y1, int x2, int y2);
+
+静态初始化：在C++中，静态的类对象和定义会在main执行前执行。
+在编译器中，这种处理方法通常是在main里面默认调用某个函数：
+    
+    int main(int argc, char *argv[]){
+        performStaticInitialization();
+
+        realmain();
+
+        performStaticDestruction();
+    }
+动态内存分配：C++时候new和delete，C是malloc和free
+
+数据结构的兼容性：C无法知道C++的特性
+
+总结下来就是：确保C++和C编译器产生兼容的obj文件，将在两种语言下都是用的函数声明为extern'C'，只要可能，应该用C++写main(),delete，new成对使用，malloc和free成对使用，
 
 **35. 让自己熟悉C++语言标准**
 
+熟悉stl和一些新的C++特性。
 
+在C++运行库中的几乎任何东西都是模板，几乎所有的内容都在命名空间std中
 
 
 ## Effective Modern C++
@@ -2133,9 +2256,55 @@ some note copy from [EffectiveModernCppChinese](https://github.com/racaljk/Effec
 
 **1. 理解模板类型推导**
 
+其他之前说过了，主要是T有三种情况：1.指针或引用。2.通用的引用。3.既不是指针也不是引用
+    
+    template<typename T>
+    void f(T& param);   //param是一个引用
+
+    int x = 27; // x是一个int
+    const int cx = x; // cx是一个const int
+    const int& rx = x; // rx是const int的引用
+    上面三种在调用f的时候会编译出不一样的代码：
+    f(x);  // T是int，param的类型时int&
+    f(cx); // T是const int，param的类型是const int&
+    f(rx); // T是const int， param的类型时const int&
+
+    template<typename T>
+    void f(T&& param); // param现在是一个通用的引用
+
+    template<typename T>
+    void f(T param); // param现在是pass-by-value
+
+如果用数组或者函数指针来调用的话，模板会自动抽象成指针。如果模板本身是第一种情况（指针或引用），那么就会自动编译成数组
+
 **2. 理解auto类型推导**
 
+auto关键字的类型推倒和模板差不多，auto就相当于模板中的T，所以：
+
+    auto x = 27; // 情况3（x既不是指针也不是引用）
+    const auto cx = x; // 情况3（cx二者都不是）
+    const auto& rx = x; // 情况1（rx是一个非通用的引用）
+
+    auto&& uref1 = x; // x是int并且是左值，所以uref1的类型是int&
+    auto&& uref2 = cx; // cx是int并且是左值，所以uref2的类型是const int&
+    auto&& uref3 = 27; // 27是int并且是右值， 所以uref3的类型是int&&
+在花括号初始化的时候，推倒的类型是std::initializer_list的一个实例，但是如果把相同的类型初始化给模板，则是失败的，
+
+    auto x = { 11, 23, 9 }; // x的类型是std::initializer_list<int>
+    template<typename T> void f(T param); // 和x的声明等价的模板
+    f({ 11, 23, 9 }); // 错误的！没办法推导T的类型
+
+    template<typename T> void f(std::initializer_list<T> initList);
+    f({ 11, 23, 9 }); // T被推导成int，initList的类型是std::initializer_list<int>
+
 **3. 理解decltype**
+
+    template<typename Container, typename Index> // works, but requires refinements
+    auto authAndAccess(Container& c, Index i) -> decltype(c[i])
+    {
+        authenticateUser();
+        return c[i];
+    }
 
 **4. 学会查看类型推导结果**
 
