@@ -2510,12 +2510,60 @@ weak_ptr通常由一个std::shared_ptr来创建，他们指向相同的地方，
 
 **22. 当使用Pimpl惯用法，请在实现文件中定义特殊成员函数**
 
+impl类的做法：之前写到过，就是把对象的成员变量替换成一个指向已经实现的类的指针，这样可以减少build的次数
+    
+    class Widget{ //still in header "widget.h"
+    public:
+        Widget();
+        ~Widget(); //dtor is needed-see below
+    private:
+        struct Impl; //declare implementation struct and pointer to it
+        std::unique_ptr<Impl> pImpl;
+    }
+
+    #include "widget.h" //in impl,file "widget.cpp"
+    #include "gadget.h"
+    #include <string>
+    #include <vector>
+    struct Widget::Impl{
+        std::string name; //definition of Widget::Impl with data members formerly in Widget
+        std::vector<double> data;
+        Gadget g1,g2,g3;
+    }
+    Widget::Widget():pImpl(std::make_unique<Impl>())
+    Widget::~Widget(){} //~Widget definition，必须要定义，如果不定义的话会报错误，因为在执行Widget w的时候，会调用析构，而我们并没有声明，所以unique_ptr会有问题
+
++ Pimpl做法通过减少类的实现和类的使用之间的编译依赖减少了build次数
++ 对于 std::unique_ptr pImpl指针，在class的头文件中声明这些特殊的成员函数，在class
+的实现文件中定义它们。即使默认的实现方式(编译器生成的方式)可以胜任也要这么做
++ 上述建议适用于 std::unique_ptr ,对 std::shared_ptr 无用
+
 
 #### 五、右值引用，移动语意，完美转发
 
 **23. 理解std::move和std::forward**
 
+首先move不move任何东西，forward也不转发任何东西，在运行时，不产生可执行代码，这两个只是执行转换的函数（模板），std::move无条件的将他的参数转换成一个右值，forward只有当特定的条件满足时才会执行他的转换，下面是std::move的伪代码：
+    
+    template<typename T>
+    typename remove_reference<T>::type&& move(T&& param){
+        using ReturnType = typename remove_reference<T>::type&&; //see Item 9
+        return static_cast<ReturnType>(param);
+    }
+
 **24. 区别通用引用和右值引用**
+
+    void f(Widget&& param);       //rvalue reference
+    Widget&& var1 = Widget();     //rvalue reference
+    auto&& var2 = var1;           //not rvalue reference
+    template<typename T>
+    void f(std::vector<T>&& param) //rvalue reference
+    template<typename T>
+    void f(T&& param);             //not rvalue reference
+
++ 如果一个函数的template parameter有着T&&的格式，且有一个deduce type T.或者一个对象被生命为auto&&,那么这个parameter或者object就是一个universal reference.
++ 如果type的声明的格式不完全是type&&,或者type deduction没有发生，那么type&&表示的是一个rvalue reference.
++ universal reference如果被rvalue初始化，它就是rvalue reference.如果被lvalue初始化，他就是lvaue reference.
 
 **25. 对于右值引用使用std::move，对于通用引用使用std::forward**
 
