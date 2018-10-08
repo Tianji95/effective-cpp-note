@@ -2305,14 +2305,63 @@ auto关键字的类型推倒和模板差不多，auto就相当于模板中的T�
         authenticateUser();
         return c[i];
     }
+    在上面的这段代码里面，C++14可以把后面的->decltype(c[i])删掉，但是auto实际推倒的类型是container而不带引用。因为 authAndAccess(d, 5) = 10这样是编译器不允许的情况。
+如果想要返回引用的话，需要将上面的那一段代码重写成下面的样子：
+    
+    template<typename Container, typename Index> // works, but still requires refinements
+    decltype(auto) authAndAccess(Container& c, Index i)
+    {
+        authenticateUser();
+        return c[i];
+    }
+如果想要这个函数既返回左值（可以修改）又可以返回右值（不能修改）的话，可以用下面的写法：
+    
+    template<typename Container, typename Index>
+    decltype(auto) authAndAccess(Container&& c, Index i){//C++14
+        authenticateUser();
+        return std::forward<Container>(c)[i];
+    }
+decltype的一些让人意外的应用：
+    
+    decltype(auto) f2(){
+        int x = 0 ;
+        return x;     // 返回的是int;
+    }
+    decltype(auto) f2(){
+        int x = 0;
+        return (x);   //返回的是int&
+    }
 
 **4. 学会查看类型推导结果**
+
+其实就是使用IDE编辑器来进行鼠标悬停/debug模式/运行时typeid输出等操作来查看类型
+
+需要知道的是，编译器报告出来的数据类型并不一定正确，所以还是需要对C++标准的类型推倒熟悉
 
 #### 二、auto
 
 **5. 优先考虑auto而非显式类型声明**
 
+没有初始化auto的时候，会从编译器阶段就报错;
+可以让lambda表达式更加稳定，更加快速，需要更少的资源，避免类型截断的问题，变量声明引起的歧义：
+    
+    std::vector<int> v;
+    unsigned sz = v.size(); //在32位下运行良好，因为此时size()返回的size_type是32位的，unsigned也是32位的，但是在64位上就不行了，size_type会变成64位，而unsigned仍然是32位
+    auto     sz = v.size(); //在64位机器上仍然表现良好
+
 **6. auto推导若非己愿，使用显式类型初始化惯用法**
+
+    std::vector<bool> features(const Widget& w);
+    Widget w;
+    auto highPriority = features(w)[5]
+
+    processWidget(w, highPriority); // 未定义的行为，因为这个时候highPriority已经不是bool类型的了，这个时候返回的是一个std::vector<bool>::reference对象（内嵌在std::vector<bool>中的对象）
+如果用：
+    
+    bool highPriority = features(w)[5];的时候，因为编译器看到bool，所以会发生隐式转换，将reference转换成bool类型
+当然也有强制变成bool 的方法：
+    
+    auto highPriority = static_cast<bool>(features(w)[5]);
 
 
 #### 三、移步现代C++
@@ -2321,13 +2370,78 @@ auto关键字的类型推倒和模板差不多，auto就相当于模板中的T�
 
 **8. 优先考虑nullptr而非0和NULL**
 
+编译器扫到一个0，发现有一个指针用到了他，所以才勉强强行将0解释为空指针，而NULL也是如此，这就会造成一些细节上的不确定性。
+
+使用nullptr不仅可以避免一些歧义，还可以让代码更加清晰，而且nullptr是无法被解释为整数的，可以避免很多问题
 **9. 优先考虑别名声明而非typedefs**
 
-**10. 优先考虑限域枚举而非未限域枚举**
+别名声明可以让函数指针变得更容易理解：
 
-**11. 优先考虑使用delete而非使用未定义的私有声明**
+    // FP等价于一个函数指针，这个函数的参数是一个int类型和
+    // std::string常量类型，没有返回值
+    typedef void (*FP)(int, const std::string&); // typedef
+    // 同上
+    using FP = void (*)(int, const std::string&); // 声明别名
+并且类型别名可以实现别名模板，而typedef不行：
+    
+    template<typname T> // MyAllocList<T>
+    using MyAllocList = std::list<T, MyAlloc<T>>; // 等同于std::list<T,MyAlloc<T>>
+    MyAllocList<Widget> lw; // 终端代码
+模板别名还避免了::type的后缀，在模板中，typedef还经常要求使用typename前缀：
+    
+    template<class T>
+    using remove_const_t = typename remove_const<T>::type
+
+**10. 优先考虑限域枚举(enmus)而非未限域枚举(enum)**
+
+    enum Color { black, white, red}; // black, white, red 和 Color 同属一个定义域
+    auto white = false; // 错误！因为 white 在这个定义域已经被声明过
+
+    enum class Color { black, white, red}; // black, white, red作用域为 Color
+    auto white = false; // fine, 在这个作用域内没有其他的 "white"
+
+C++98 风格的 enum 是没有作用域的 enum
+
+有作用域的枚举体的枚举元素仅仅对枚举体内部可见。只能通过类型转换（ cast ）转换
+为其他类型
+
+有作用域和没有作用域的 enum 都支持指定潜在类型。有作用域的 enum 的默认潜在类型是 int 。没有作用域的 enum 没有默认的潜在类型。
+
+有作用域的 enum 总是可以前置声明的。没有作用域的 enum 只有当指定潜在类型时才可以前置声明。
+**11. 优先考虑使用delete来禁用函数而不是声明成private却又不实现**
+
+    template <class charT, class traits = char_traits<charT> >
+    class basic_ios : public ios_base {
+    public:
+        basic_ios(const basic_ios& ) = delete;
+        basic_ios& operator=(const basic_ios&) = delete;
+    };
+delete的函数不能通过任何方式被使用，即使是其他成员函数或者friend，都是不行的，但是如果只是声明成privatre，编译器只会报警说是private的。
+
+delete的另一个优势就是任何函数都可以delete，但是只有成员函数才能是private的，例如：
+    
+    bool isLucky(int number); // 原本的函数
+    bool isLucky(char) = delete; // 拒绝char类型
+上面这一段代码如果只是声明成private的话，会被重载
 
 **12. 使用override声明重载函数**
+
+只有当基类和子类的虚函数完全一样的时候，才会出现覆盖的情况，如果不完全一样，则会重载：
+    
+    class Base{
+    public:
+        virtual void doWork();
+    };
+    class Derived: public Base{
+    public:
+        virtual void doWork();   //会覆盖基类
+    };
+
+    class Derived:public Base{
+    public:
+        virtual void doWork()&&; //不会发生覆盖，而是会重载
+    };
+所以尽量要在需要重写的函数后面加上override
 
 **13. 优先考虑const_iterator而非iterator**
 
@@ -2343,11 +2457,56 @@ auto关键字的类型推倒和模板差不多，auto就相当于模板中的T�
 
 **18. 对于占有性资源使用std::unique_ptr**
 
+资源是独占的，不允许拷贝，允许进行move
+std::unique_ptr是一个具有开销小，速度快，move-only特定的智能指针，使用独占拥有方式来管理资源
+
+默认情况下，释放资源由delete来完成，也可以指定自定义的析构函数来替代，但是具有丰富状态的deleters和以函数指针作为deleters增大了std::unique_ptr的存储开销
+
+很容易将一个std::unique_ptr转化为std::shared_ptr
+
 **19. 对于共享性资源使用std::shared_ptr**
+
++ std::shared_ptr是原生指针的两倍大小，因为他们内部除了包含一个原生指针以外，还包含了一个引用计数
++ 引用计数的内存必须被动态分配，当然用make_shared来创建shared_ptr会避免动态内存的开销。
++ 引用计数的递增和递减必须是原子操作。
++ std::shared_ptr为了管理任意资源的共享式内存管理，提供了自动垃圾回收的便利
++ std::shared_ptr 是 std::unique_ptr 的两倍大，除了控制块，还有需要原子引用计数操作引起的开销
++ 资源的默认析构一般通过delete来进行，但是自定义的deleter也是支持的。deleter的类型对于 std::shared_ptr 的类型不会产生影响
++ 避免从原生指针类型变量创建 std::shared_ptr
 
 **20. 对于类似于std::shared_ptr的指针使用std::weak_ptr可能造成悬置**
 
+weak_ptr通常由一个std::shared_ptr来创建，他们指向相同的地方，但是weak_ptr并不会影响到shared_ptr的引用计数：
+    
+    auto spw = std::make_shared<Widget>();//spw 被构造之后被指向的Widget对象的引用计数为1(欲了解std::make_shared详情，请看Item21)
+    std::weak_ptr<Widget> wpw(spw);//wpw和spw指向了同一个Widget,但是RC(这里指引用计数，下同)仍旧是1
+    spw = nullptr;//RC变成了0，Widget也被析构，wpw现在处于悬挂状态
+    if(wpw.expired())... //如果wpw悬挂...
+那么虽然weak_ptr看起来没什么用，但是他其实也有一个应用场合（用来做缓存）：
+    
+    std::unique_ptr<const Widget> loadWidget(WidgetID id); //假设loadWidget是一个很繁重的方法，需要对这个方法进行缓存的话，就需要用到weak_ptr了：
+
+    std::shared_ptr<const Widget> fastLoadWidget(WidgetId id){
+        static std::unordered_map<WidgetID,
+        std::weak_ptr<const Widget>> cache;
+        auto objPtr = cache[id].lock();//objPtr是std::shared_ptr类型指向了被缓存的对象(如果对象不在缓存中则是null)
+        if(!objPtr){
+            objPtr = loadWidget(id);
+            cache[id] = objPtr;
+        }   //如果不在缓存中，载入并且缓存它
+        return objPtr;
+    }
++ std::weak_ptr 用来模仿类似std::shared_ptr的可悬挂指针
++ 潜在的使用 std::weak_ptr 的场景包括缓存，观察者列表，以及阻止 std::shared_ptr 形成的环
+
 **21. 优先考虑使用std::make_unique和std::make_shared而非new**
+
++ 和直接使用new相比，使用make函数减少了代码的重复量，提升了异常安全度，并且，对于std::make_shared以及std::allocate_shared来说，产生的代码更加简洁快速
++ 也会存在使用make函数不合适的场景：包含指定自定义的deleter,以及传递大括号initializer的需要
++ 对于std::shared_ptr来说，使用make函数的额外的不使用场景还包含
+
+    (1)带有自定义内存管理的class
+    (2)内存非常紧俏的系统，非常大的对象以及比对应的std::shared_ptr活的还要长的std::weak_ptr
 
 **22. 当使用Pimpl惯用法，请在实现文件中定义特殊成员函数**
 
