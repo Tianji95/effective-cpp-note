@@ -2368,6 +2368,36 @@ decltype的一些让人意外的应用：
 
 **7. 区别使用()和{}创建对象**
 
+大括号{}，更像是一种通用的，什么时候初始化都能用的东西，但是大括号会进行类型检查：
+    
+    double x, y, z;
+    int sum1{x+y+z}; //错误，因为double之和可能无法用int表达（超出int范围）
+
+小括号()和等于号=在更多时候是无法使用的，并且小括号很容易被认为是一个函数。但是这两个不会进行类似上面的类型检查：
+    
+    class Widget{
+        int x{0}; //right
+        int y = 0;//right
+        int z(0); //错！
+    };
+
+    std::atomic<int> ai2(0); //right
+    std::atomic<int> ai3 = 0; //错！
+    
+    Widget w1(10); //调用w1的构造函数
+
+大括号和小括号的另一个区别是带有std::initializer_list<long double> 的时候，会自动调用大括号，反之没区别：
+    
+    class Widget{
+    public:
+        Widget(int i, bool b);
+        Widget(std::initializer_list<long double> il);
+    };
+
+    Widget w1(10, true); //调用第一个构造函数
+    Widget w2{10, true}; //调用第二个构造函数
+
+
 **8. 优先考虑nullptr而非0和NULL**
 
 编译器扫到一个0，发现有一个指针用到了他，所以才勉强强行将0解释为空指针，而NULL也是如此，这就会造成一些细节上的不确定性。
@@ -2444,6 +2474,8 @@ delete的另一个优势就是任何函数都可以delete，但是只有成员�
 所以尽量要在需要重写的函数后面加上override
 
 **13. 优先考虑const_iterator而非iterator**
+
+C++98中const_iterator不太好用，但是C++11中很方便
 
 **14. 如果函数不抛出异常请使用noexcept**
 
