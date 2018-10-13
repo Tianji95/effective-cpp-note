@@ -2479,11 +2479,61 @@ C++98中const_iterator不太好用，但是C++11中很方便
 
 **14. 如果函数不抛出异常请使用noexcept**
 
+因为对于异常本身来说，会不会发生异常往往是人们所关心的事情，什么样的异常反而是不那么关心的，因此noexcept和const是同等重要的信息
+并且加上noexcept关键字，会让编译器对代码的优化变强。
+
+对于像swap这样需要进行异常检查的函数（还有移动操作函数，内存释放函数，析构函数），如果有noexcept关键字的话，会让代码效率提升非常大。当然，noexcept用的时候必须保证函数真的不会抛出异常
+
 **15. 尽可能的使用constexpr**
+
+constexpr：表示的值不仅是const，而且在编译阶段就已知其值了，他们因为这样的特性就会被放到只读内存里面，并且因为这个特性，constexpr的值可以用在数组规格，整形模板实参中：
+    
+    constexpr auto arraySize = 10;
+    std::array<int, arraySize> data2;
+
+但是对于constexpr的函数来说，如果所有的函数实参都是已知的，那这个函数也是已知的，如果所有实参都是未知的，编译无法通过，
+在调用constexpr函数时，入股传入的值有一个或多个在编译期未知，那这个函数就是个普通函数，如果都是已知的，那这个函数也是已知的。
+
+使用constexpr会让客户的代码得到足够的支持，并且提升程序的效率
 
 **16. 确保const成员函数线程安全**
 
+    class Polynomial{
+    public:
+        using RootsType = std::vector<double>;
+        RootsType roots() const{
+            if(!rootAreValid){
+                rootsAreValid = true;
+            }
+            return rootVals;
+        }
+    private:
+        mutable bool rootsAreValid{false};
+        mutable RootsType rootVals{};
+    }
+
+在上面那段代码中，虽然roots是const的成员函数，但是成员变量是mutable的，是可以在里面改的，如果这样做的话，就无法做到线程安全，并且编译器在看到const的时候还认为他是安全的。这个时候只能加上互斥量 std::lock_guard<std::mutex> g(m); mutable std::mutex m;
+
+当然，除了上面添加互斥量的做法以外，成本更低的做法是进行std::atomic的操作（但是仅适用于对单个变量或内存区域的操作）：
+    
+    class Point{
+    public:
+        double distanceFromOrigin() const noexcept{
+            ++callCount;
+            return std::sqrt((x*x) + (y * y));
+        }    
+    private:
+        mutable std::atomic<unsigned> callCount{0};
+        double x, y;
+    };
+
 **17. 理解特殊成员函数函数的生成**
+
+特殊成员函数包括默认构造函数，析构函数，拷贝构造函数，拷贝赋值运算符（这些函数只有在需要的时候才会生成），以及最新的移动构造函数和移动赋值运算符
+
+三大律：如果你声明了拷贝构造函数，赋值运算符重载，析构函数中的任何一个，都需要把其他几个补全，如果不想自己写的话，也要写上=default（如果不声明的话，编译器很有可能不会生成另外几个函数的默认函数）
+
+对于成员函数模板来说，在任何情况下都不会抑制特殊成员函数的生成
 
 #### 四、智能指针
 
@@ -2598,6 +2648,8 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
 + universal reference如果被rvalue初始化，它就是rvalue reference.如果被lvalue初始化，他就是lvaue reference.
 
 **25. 对于右值引用使用std::move，对于通用引用使用std::forward**
+
+右值引用仅会绑定在可以移动的对象上，如果形参类型是右值引用，则他绑定的对象应该是可以移动的
 
 **26. 避免重载通用引用**
 
