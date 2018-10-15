@@ -2824,10 +2824,32 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
 
 **32. 使用初始化捕获来移动对象到闭包中**
 
+    auto func = [pw = std::make_unique<Widget>()]{    //初始化捕获（广义lambda捕获），适用于C++14及其以上
+        return pw->isValidated() && pw->isArchived();
+    };
+    
+    auto func = std::bind([](const std::unique_ptr<Widget>& data){}, std::make_unique<Widget>()); // C++11的版本，和上面的含义一样
+
 **33. 对于std::forward的auto&&形参使用decltype**
 
-**34. 有限考虑lambda表达式而非std::bind**
+在C++14中，我们可以在lambda表达式里面使用auto了，那么我们想要把传统的完美转发用lambda表达式写出来应该是什么样子的呢：
+    
+    class SomeClass{
+    public:
+        template<typename T>
+        auto operator()(T x) const{
+            return func(normalize(x));
+        }
+    }
 
+    auto f=[](auto&& x){
+        return func(normalize(std::forward<decltype(x)>(x)));
+    };
+
+**34. 优先考虑lambda表达式而非std::bind**
+
++ lambda表达式具有更好的可读性，表达力也更强，有可能效率也更高
++ 只有在C++11中，bind还有其发挥作用的余地
 
 #### 七、并发API
 
