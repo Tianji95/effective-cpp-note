@@ -1,7 +1,8 @@
 # Note Of Effective C++ 、More Effective C++ And Effective Modern C++
 
 Effective C++ 、More Effective C++ 和 Effective Modern C++三本书的一个整合，并且加入了一些自己的想法和笔记
-![详细笔记请看另一个文件](!https://github.com/Tianji95/effective-cpp-note/blob/master/note%20of%20effective%20c%2B%2B.md)
+
+详细笔记请看另一个文件
 
 ## Effective C++
 
