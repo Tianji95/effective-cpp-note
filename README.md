@@ -1,5 +1,6 @@
 # Note Of Effective C++ And More Effective C++
 
+这个文件包含了三本书的详细知识点，想要快速过一下的话可以看这个 [文件](./outline.md)
 
 ## Effective C++
 
@@ -12,7 +13,7 @@
     object-C的class，封装继承多态，virtual动态绑定等，
     template C++的泛型
     STL：容器，迭代器，算法，函数对象等
-
+    
     因此当这四个子语言相互切换的时候，可以更多地考虑高效编程，例如pass-by-value和pass-by-reference在不同语言中效率不同
 
 总结：
@@ -197,7 +198,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
             db.close();
             closed = true;
         }
-
+    
         ~DBConn(){
             if(!closed){
                 try{
@@ -236,9 +237,9 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
             virtual void logTransaction() const;
     };
     BuyTransaction b;
-
+    
     或者有一个更难发现的版本：
-
+    
     class Transaction{
     public:
         Transaction(){init();}
@@ -368,11 +369,11 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
     
     class Font; class FontHandle;
     void changeFontSize(FontHandle f, int newSize){    }//需要调用的API
-
+    
     Font f(getFont());
     int newFontSize = 3;
     changeFontSize(f.get(), newFontSize);//显式的将Font转换成FontHandle
-
+    
     class Font{
         operator FontHandle()const { return f; }//隐式转换定义
     }
@@ -398,9 +399,9 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
     void processWidget(shared_ptr<Widget> pw, int priority);
     processWidget(new Widget, priority());// 错误，这里函数是explicit的，不允许隐式转换（shared_ptr需要给他一个普通的原始指针
     processWidget(shared_ptr<Widget>(new Widget), priority()) // 可能会造成内存泄漏
-
+    
     内存泄漏的原因为：先执行new Widget，再调用priority， 最后执行shared_ptr构造函数，那么当priority的调用发生异常的时候，new Widget返回的指针就会丢失了。当然不同编译器对上面这个代码的执行顺序不一样。所以安全的做法是：
-
+    
     shared_ptr<Widget> pw(new Widget)
     processWidget(pw, priority())
 
@@ -421,7 +422,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
         public:
         static Month Jan(){return Month(1);}//这里用函数代替对象，主要是方式第四条：non-local static对象的初始化顺序问题
     }
-
+    
     而对于一些返回指针的问题函数，例如：
     Investment *createInvestment();//智能指针可以防止用户忘记delete返回的指针或者delete两次指针，但是可能存在用户忘记使用智能指针的情况，那么方法：
     std::shared_ptr<Investment> createInvestment();就可以强制用户使用智能指针，或者更好的方法是另外设计一个函数：
@@ -452,7 +453,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
     
     bool validateStudent(const Student &s);//省了很多构造析构拷贝赋值操作
     bool validateStudent(s);
-
+    
     subStudent s;
     validateStudent(s);//调用后,则在validateStudent函数内部实际上是一个student类型，如果有重载操作的话会出现问题
 
@@ -485,7 +486,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
         void clearHistory();
         void removeCookies();
     }
-
+    
     member 函数：
     class WebBrowser{
         public:
@@ -509,7 +510,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
         class WebBrowser{...};
         //所有用户需要的non-member函数
     }
-
+    
     "webbrowserbookmarks.h"
     namespace WebBrowserStuff{
         //所有与书签相关的便利函数
@@ -527,7 +528,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
     Rational oneHalf;
     result = oneHalf * 2;
     result = 2 * oneHalf;//出错，因为没有int转Rational函数
-
+    
     non-member函数
     class Rational{}
     const Rational operator*(const Rational& lhs, const Rational& rhs){}
@@ -546,7 +547,7 @@ const最强的用法是在函数声明时，如果将返回值设置成const，�
         private:
         WidgetImpl* pImpl;
     }
-
+    
     修改后代码：
     namespace WidgetStuff{
         template<typename T>
@@ -640,7 +641,7 @@ boundingBox会返回一个temp的新的，暂时的Rectangle对象，在这一�
 当异常抛出的时候，这个函数就存在很大的问题：
 + 不泄露任何资源：当new Image(imgSrc)发生异常的时候，对unlock的调用就绝不会执行，于是互斥器就永远被把持住了
 + 不允许数据破坏：如果new Image(imgSrc)发生异常，bgImage就是空的，而且imageChanges也已经加上了
-    
+  
     修改后代码：
     void PrettyMenu::changeBackground(std::istream& imgSrc){
         Lock ml(&mutex);    //Lock是第13条中提到的用对象管理资源的类
@@ -683,7 +684,7 @@ inline 函数的过度使用会让程序的体积变大，内存占用过高
         Dates m_data;
         Addresses m_addr;
     }
-
+    
     添加一个Person的实现类，定义为PersonImpl，修改后的代码：
     class PersonImpl;
     class Person{
@@ -806,9 +807,9 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
     private:
         HealthCalcFunc healthFunc;
     }
-
+    
     如果将函数指针换成函数对象的话，会有更具有弹性的效果：
-
+    
     typedef std::tr1::function<int (const GameCharacter&)> HealthCalcFunc;
     在这种情况下，HealthCalcFunc是一个typedef，他的行为更像一个函数指针，表示“接受一个reference指向const GameCharacter，并且返回int*”，
 
@@ -834,7 +835,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
     };
 
     D x;
-
+    
     B *pB = &x; pB->mf(); //调用B版本的mf
     D *pD = &x; pD->mf(); // 调用D版本的mf
 
@@ -929,7 +930,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
         virtual std::size_t size() const;
         void swap(Widget& other); //第25条
     }
-
+    
     void doProcessing(Widget& w){
         if(w.size()>10){...}
     }
@@ -962,7 +963,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
 
 + 声明template参数时，前缀关键字class和typename是可以互换的
 + 需要使用typename标识嵌套从属类型名称，但不能在base class lists（基类列）或者member initialization list（成员初始列）内以它作为base class修饰符 
-    
+  
     template<typename T>
     class Derived : public typename Base<T> ::Nested{}//错误的！！！！！
 
@@ -976,7 +977,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
         ....
     }
     class CompanyB{....}
-
+    
     template <typename Company>
     class MsgSender{
     public:
@@ -1019,9 +1020,9 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
     template<typename Company>
     class LoggingMsgSender:public MsgSender<Company>{
         public:
-
+    
         using MsgSender<Company>::sendClear; //告诉编译器，请他假设sendClear位于base class里面
-
+    
         void sendClearMsg(const MsgInfo& info){
             //记录log
             sendClear(info);//假设sendClear将被继承
@@ -1050,7 +1051,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
         public:
         void invert();    //求逆矩阵
     }
-
+    
     SquareMatrix<double, 5> sm1;
     SquareMatrix<double, 10> sm2;
     sm1.invert(); 
@@ -1063,7 +1064,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
         protected:
         void invert(std::size_t matrixSize);
     }
-
+    
     template<typename T, std::size_t n>
     class SquareMatrix:private SquareMatrixBase<T>{
         private:
@@ -1123,7 +1124,7 @@ NVI手法：通过public non-virtual成员函数间接调用private virtual函�
     
     template<typename T>
     const Rational<T> operator* (const Rational<T>& lhs, const Rational<T>& rhs){....}
-
+    
     Rational<int> oneHalf(1, 2);
     Rational<int> result = oneHalf * 2; //错误，无法通过编译
 
@@ -1189,7 +1190,7 @@ traits是一种允许你在编译期间取得某些类型信息的技术，或�
                 --iter;
         }
     }
-
+    
     template<typename IterT, typename DistT>
     void advance(IterT& iter, DistT d){
         doAdvance(iter, d, typename std::iterator_traits<IterT>::iterator_category());
@@ -1264,7 +1265,7 @@ new-handler无法给每个class进行定制，但是可以重写new运算符，�
 
 void* operator new(std::size_t, void* pMemory) throw(); //placement new
 static void operator delete(void* pMemory) throw();     //palcement delete，此时要注意名称遮掩问题
- 
+
 #### 杂项讨论 (Miscellany)
 
 **53. 不要轻忽编译器的警告（Pay attention to compiler warnings)**
@@ -1322,13 +1323,13 @@ static void operator delete(void* pMemory) throw();     //palcement delete，此
     
     class BST{...}
     class BalancedBST : public BST{...}
-
+    
     void printBSTArray(const BST array[]){
         for(auto i : array){
             std::cout << *i;
         }
     }
-
+    
     BalancedBST bBSTArray[10];
     printBSTArray(bBSTArray);
 
@@ -1394,7 +1395,7 @@ static void operator delete(void* pMemory) throw();     //palcement delete，此
     bool operator==(const Array<int> &lhs, const Array<int> & rhs);
     Array<int> a(10), b(10);
     if(a == b[3]) //想要写 a[3] == b[3]，但是这时候编译器并不会报错，解决方法是使用explicit关键字
-
+    
     explicit Array(int size); 
     if(a == b[3]) // 错误，无法进行隐式转换
 
@@ -1437,7 +1438,7 @@ if(expression1 && expression2){} 就会先运算第一个表达式，然后再�
 两种new: new 操作符（new operator）和new操作（operator new）的区别
 
     string *ps = new string("Memory Management"); //使用的是new操作符，这个操作符像sizeof一样是内置的，无法改变
-
+    
     void* operator new(size_t size); // new操作，可以重写这个函数来改变如何分配内存
 
 一般不会直接调用operator new，但是可以像调用其他函数一样调用他：
@@ -1451,7 +1452,7 @@ placement new : placement new 是有一些已经被分配但是没有被处理�
             Widget(int widgetSize);
         ....
     };
-
+    
     Widget* constructWidgetInBuffer(void *buffer, int widgetSize){
         return new(buffer) Widget(widgetSize);
     }
@@ -1903,19 +1904,19 @@ clone() 叫做虚拟拷贝构造函数,相当于拷贝一个新的对象
         static const size_t maxObjects;
         void init();                 //避免构造函数的代码重复
     };
-
+    
     template<class BeingCounted>
     Counted<BeingCounted>::Counted(){init();}
-
+    
     template<class BeingCounted>
     Counted<BeingCounted>::Counted(const Counted<BeingCounted>&){init();}
-
+    
     template<class BeingCounted>
     void Counted<BeingCounted>::init(){
         if(numObjects >= maxObjects)throw TooManyObjects();
         ++numObjects;
     }
-
+    
     class Printer:private Counted<Printer>{
     public:
         static Printer* makePrinter(); // 伪构造函数
@@ -1990,7 +1991,7 @@ smart pointer 和继承类/基类的类型转换:
     class Cassette:public MusicProduct{....};
     class CD:public MusicProduct{....};
     displayAndPlay(const SmartPtr<MusicProduct>& pmp, int numTimes);
-
+    
     SmartPtr<Cassette> funMusic(new Cassette("1234"));
     SmartPtr<CD> nightmareMusic(new CD("143"));
     displayAndPlay(funMusic, 10); // 错误!
@@ -2009,7 +2010,7 @@ smart pointer 和 const：
     SmartPtr<const CD> p; //const 对象 non-const 指针
     const SmartPtr<CD> p = &goodCD; //non-const 对象 const 指针
     const SmartPtr<const CD> p = &goodCD; //const 对象 const 指针
-
+    
     template<class T>      // 指向const对象的
     class SmartPtrToConst{ //灵巧指针
         ...                // 灵巧指针通常的成员函数
@@ -2019,7 +2020,7 @@ smart pointer 和 const：
             T* pointee; // 让 SmartPtr 访问
         };
     };
-
+    
     template<class T> // 指向 non-const 对象的灵巧指针
     class SmartPtr: public SmartPtrToConst<T> {
         ... // 没有数据成员
@@ -2065,7 +2066,7 @@ smart pointer 和 const：
         };
         const CharProxy operator[](int index) const;//对于const的Strings
         CharProxy operator[](int index);            //对于non-const的Strings
-
+    
         friend class CharProxy;
     private:
         RCPtr<StringValue> value;
@@ -2079,7 +2080,7 @@ smart pointer 和 const：
     class SpaceShip : public GameObject{....};
     class SpaceStation : public GameObject{....};
     class Asteroid : public GameObject{....};
-
+    
     void checkForCollision(GameObject& object1, GameObject& object2){
         processCollision(object1, object2);
     }
@@ -2136,7 +2137,7 @@ smart pointer 和 const：
         virtual void collide(GameObject& otherObject) = 0;
         ...
     };
-
+    
     class SpaceShip: public GameObject {
     public:
         virtual void collide(GameObject& otherObject);
@@ -2146,7 +2147,7 @@ smart pointer 和 const：
         virtual void hitAsteroid(GameObject& asteroid);
         ...
     };
-
+    
     SpaceShip::HitMap * SpaceShip::initializeCollisionMap(){
         HitMap *phm = new HitMap;
         (*phm)["SpaceShip"] = &hitSpaceShip;
@@ -2200,7 +2201,7 @@ smart pointer 和 const：
     public:
         virtual ~AbstractAnimal() = 0;
     };
-
+    
     class Animal: public AbstractAnimal{
     public:
         Animal& operator=(const Animal& rhs);
@@ -2230,9 +2231,9 @@ C++的extern‘C’可以禁止进行名字变换，例如：
     
     int main(int argc, char *argv[]){
         performStaticInitialization();
-
+    
         realmain();
-
+    
         performStaticDestruction();
     }
 动态内存分配：C++时候new和delete，C是malloc和free
@@ -2260,7 +2261,7 @@ some note copy from [EffectiveModernCppChinese](https://github.com/racaljk/Effec
     
     template<typename T>
     void f(T& param);   //param是一个引用
-
+    
     int x = 27; // x是一个int
     const int cx = x; // cx是一个const int
     const int& rx = x; // rx是const int的引用
@@ -2268,10 +2269,10 @@ some note copy from [EffectiveModernCppChinese](https://github.com/racaljk/Effec
     f(x);  // T是int，param的类型时int&
     f(cx); // T是const int，param的类型是const int&
     f(rx); // T是const int， param的类型时const int&
-
+    
     template<typename T>
     void f(T&& param); // param现在是一个通用的引用
-
+    
     template<typename T>
     void f(T param); // param现在是pass-by-value
 
@@ -2284,7 +2285,7 @@ auto关键字的类型推倒和模板差不多，auto就相当于模板中的T�
     auto x = 27; // 情况3（x既不是指针也不是引用）
     const auto cx = x; // 情况3（cx二者都不是）
     const auto& rx = x; // 情况1（rx是一个非通用的引用）
-
+    
     auto&& uref1 = x; // x是int并且是左值，所以uref1的类型是int&
     auto&& uref2 = cx; // cx是int并且是左值，所以uref2的类型是const int&
     auto&& uref3 = 27; // 27是int并且是右值， 所以uref3的类型是int&&
@@ -2293,7 +2294,7 @@ auto关键字的类型推倒和模板差不多，auto就相当于模板中的T�
     auto x = { 11, 23, 9 }; // x的类型是std::initializer_list<int>
     template<typename T> void f(T param); // 和x的声明等价的模板
     f({ 11, 23, 9 }); // 错误的！没办法推导T的类型
-
+    
     template<typename T> void f(std::initializer_list<T> initList);
     f({ 11, 23, 9 }); // T被推导成int，initList的类型是std::initializer_list<int>
 
@@ -2354,7 +2355,7 @@ decltype的一些让人意外的应用：
     std::vector<bool> features(const Widget& w);
     Widget w;
     auto highPriority = features(w)[5]
-
+    
     processWidget(w, highPriority); // 未定义的行为，因为这个时候highPriority已经不是bool类型的了，这个时候返回的是一个std::vector<bool>::reference对象（内嵌在std::vector<bool>中的对象）
 如果用：
     
@@ -2380,7 +2381,7 @@ decltype的一些让人意外的应用：
         int y = 0;//right
         int z(0); //错！
     };
-
+    
     std::atomic<int> ai2(0); //right
     std::atomic<int> ai3 = 0; //错！
     
@@ -2393,7 +2394,7 @@ decltype的一些让人意外的应用：
         Widget(int i, bool b);
         Widget(std::initializer_list<long double> il);
     };
-
+    
     Widget w1(10, true); //调用第一个构造函数
     Widget w2{10, true}; //调用第二个构造函数
 
@@ -2426,7 +2427,7 @@ decltype的一些让人意外的应用：
 
     enum Color { black, white, red}; // black, white, red 和 Color 同属一个定义域
     auto white = false; // 错误！因为 white 在这个定义域已经被声明过
-
+    
     enum class Color { black, white, red}; // black, white, red作用域为 Color
     auto white = false; // fine, 在这个作用域内没有其他的 "white"
 
@@ -2466,7 +2467,7 @@ delete的另一个优势就是任何函数都可以delete，但是只有成员�
     public:
         virtual void doWork();   //会覆盖基类
     };
-
+    
     class Derived:public Base{
     public:
         virtual void doWork()&&; //不会发生覆盖，而是会重载
@@ -2567,7 +2568,7 @@ weak_ptr通常由一个std::shared_ptr来创建，他们指向相同的地方，
 那么虽然weak_ptr看起来没什么用，但是他其实也有一个应用场合（用来做缓存）：
     
     std::unique_ptr<const Widget> loadWidget(WidgetID id); //假设loadWidget是一个很繁重的方法，需要对这个方法进行缓存的话，就需要用到weak_ptr了：
-
+    
     std::shared_ptr<const Widget> fastLoadWidget(WidgetId id){
         static std::unordered_map<WidgetID,
         std::weak_ptr<const Widget>> cache;
@@ -2602,7 +2603,7 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
         struct Impl; //declare implementation struct and pointer to it
         std::unique_ptr<Impl> pImpl;
     }
-
+    
     #include "widget.h" //in impl,file "widget.cpp"
     #include "gadget.h"
     #include <string>
@@ -2663,7 +2664,7 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
         Widget w;
         return w; //复制，需要调用一次拷贝构造函数
     }
-
+    
     Widget MakeWidget(){
         Widget w;
         return std::move(w);//错误！！！！！！！会造成负优化
@@ -2683,9 +2684,9 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
     
     template<typename T>
     void log(T&& name){}
-
+    
     void log(int name){}
-
+    
     short a;
     log(a);
 
@@ -2697,11 +2698,11 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
     public:
         template<typename T> explicit Person(T&& n): name(std::forward<T>(n)){} //完美转发构造函数
         explicit Person(int idx); //形参为int的构造函数
-
+    
         Person(const Person& rhs) //默认拷贝构造函数（编译器自动生成）
         Person(Person&& rhs); //默认移动构造函数（编译器生成）
     };
-
+    
     Person p("Nancy");
     auto cloneOfP(p);  //会编译失败，因为p并不是const的，所以在和拷贝构造函数匹配的时候，并不是最优解，而会调用完美转发的构造函数
 
@@ -2712,7 +2713,7 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
 + 放弃重载，采用替换名字的方案
 + 用传值来替代引用（可以提升性能但却不用增加一点复杂度
 + 采用impl方法：
-    
+  
     template<typename T>
     void logAndAdd(T&& name){
         logAndAddImpl(
@@ -2721,7 +2722,7 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
         ); 
     }
 + 对通用引用模板加以限制（使用enable_if）
-    
+  
     class Person{
     public:
         template<typename T,
@@ -2736,10 +2737,10 @@ impl类的做法：之前写到过，就是把对象的成员变量替换成一�
     
     template<typename T>
     void func(T&& param);
-
+    
     Widget WidgetFactory() //返回右值
     Widget w;
-
+    
     func(w);               //T的推到结果是左值引用类型，T的结果推倒为Widget&
     func(WidgetFactory);   //T的推到结果是非引用类型（注意这个时候不是右值），T的结果推到为Widget
 C++中，“引用的引用”是违法的，但是上面T的推到结果是Widget&时，就会出现 void func(Widget& && param);左值引用+右值引用
@@ -2761,7 +2762,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
     void fwd(T&& param){           //接受任意实参
         f(std::forward<T>(param)); //转发该实参到f
     }
-
+    
     template<typename... Ts>
     void fwd(Ts&&... param){        //接受任意变长实参
         f(std::forward<Ts>(param)...);
@@ -2772,7 +2773,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
     （大括号初始化物）
     f({1, 2, 3}); //没问题，{1, 2, 3}会隐式转换成std::vector<int>
     fwd({1, 2, 3}) //错误，因为向为生命为std::initializer_list类型的函数模板形参传递了大括号初始化变量，但是之前说如果是auto的话，会推到为std::initializer_list,就没问题了。。。
-
+    
     （0和NULL空指针）
     （仅仅有声明的整形static const 成员变量）：
     class Widget{
@@ -2786,7 +2787,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
     int processValue(int value);
     int processValue(int value, int priority);
     fwd(processVal); //错误，光秃秃的processVal并没有类型型别
-
+    
     （位域）
     struct IPv4Header{
         std::uint32_t version:4,
@@ -2795,7 +2796,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
         ECN:2,
         totalLength:16;
     };
-
+    
     void f(std::size_t sz); IPv4Header h;
     fwd(h.totalLength); //错误
 + 最后，所有的失败情形实际上都归结于模板类型推到失败，或者推到结果是错误的。
@@ -2841,7 +2842,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
             return func(normalize(x));
         }
     }
-
+    
     auto f=[](auto&& x){
         return func(normalize(std::forward<decltype(x)>(x)));
     };
@@ -2878,7 +2879,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
 + std::launch::async：指定的时候意味着函数f必须以异步方式进行，即在另一个线程上执行
 + std::launch::deferred 则指f只有在get或者wait函数调用的时候同步执行，如果get或者wait没有调用，则f不执行
 + 如果不指定策略的话（默认方法），则系统会按照自己的估计来推测需要进行什么样的策略（会带来不确定性），感觉还是很危险的！！！所以尽量在使用的时候指定是否是异步或者是同步
-    
+  
     auto fut = std::async(f);
     if(fut.wait_for(0s) == std::future_statuc::deferred){....}    //判断是否是同步（是否推迟了）
     else{
@@ -2892,7 +2893,7 @@ C++中，“引用的引用”是违法的，但是上面T的推到结果是Widg
 + joinable：对应底层已运行、可运行或者运行结束的出于阻塞或者等待调度的线程
 + unjoinable： 默认构造的std::thread, 已move的std::thread, 已join的std::thread, 已经分离的std::thread
 + 如果某一个std::thread是joinable的，然后他被销毁了，会造成很严重的后果，（比如会造成隐式join（会造成难以调试的性能异常）和隐式detach（会造成难以调试的未定义行为）），所以我们要保证thread在所有路径上都是unjoinable的：
-    
+  
     class ThreadRAII{
     public:
         enum class DtorAction{join, detach};
@@ -2963,7 +2964,7 @@ volatile的作用：告诉编译器正在处理的变量使用的是特殊内存
     volatile int x;
     auto y = x; //读取x，（这个时候auto会把const和volatile的修饰词丢弃掉，所以y的类型是int
     y = x;      //再次读取x，这个时候不会被优化掉
-    
+
 #### 八、微调
 
 **41. 对于那些可移动总是被拷贝的形参使用传值方式**
